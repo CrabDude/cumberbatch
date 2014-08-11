@@ -1,7 +1,6 @@
-var chokidar = require('chokidar');
+var chokidar = require('./chokidar');
 var fs = require('fs');
 var minimatch = require('minimatch');
-var oid = require('oid');
 var path = require('path');
 var util = require('util');
 
@@ -23,33 +22,31 @@ var Watcher = function(baseDir, options) {
     this._dirWatchers = {};
     this._paths = {};
     this._sortedPaths = [];
+    this._pathsAreSorted = false;
 
-    this._bound_checkReady = this._checkReady.bind(this);
     this._isReady = false;
     this._lastUpdate = Date.now();
     this._watchDir(baseDir, true);
 
     this._onReady = Q.defer();
-    this._checkReady();
 };
 util.inherits(Watcher, GlobEmitter);
 
-Watcher.prototype.on = function (glob, callback) {
-    var self = this;
-
-    this.onReady(function () {
-        GlobEmitter.prototype.on.call(self, glob, callback);
-    });
-};
-
 Watcher.prototype.find = function (glob) {
+    if (!this._pathsAreSorted) {
+      this._generateSortedPaths();
+    }
+
     var globPaths = {};
     var globParts = glob.split(/\*|\{/);
+    var globRoot;
     var matches;
     if (globParts.length === 0) {
       globRoot = globParts[0]
     } else if (matches = globParts[0].match(/^(.*)\/[^\/]*$/)) {
       globRoot = matches[1];
+    } else {
+      throw new Error(glob + ' must be an absolute path');
     }
     var startIdx;
 
@@ -103,16 +100,7 @@ Watcher.prototype.onReady = function (callback) {
 Watcher.prototype._generateSortedPaths = function () {
     this._sortedPaths = Object.keys(this._paths);
     this._sortedPaths.sort();
-};
-
-Watcher.prototype._checkReady = function () {
-    if (Date.now() - this._lastUpdate >= 3000) {
-        this._isReady = true;
-        this._generateSortedPaths();
-        this._onReady.resolve(true);
-    } else {
-        setTimeout(this._bound_checkReady, 1000);
-    }
+    this._pathsAreSorted = true;
 };
 
 Watcher.prototype._handleNext = function () {
@@ -161,6 +149,13 @@ Watcher.prototype._watchDir = function (dir, isRoot) {
         self._dirWatchers[dir].on('all', function (ev, filename, stat) {
             self._checkPath(filename, stat);
         });
+        self._dirWatchers[dir].on('ready', function () {
+          if (!self._isReady) {
+            self._isReady = true;
+            self._pathsAreSorted = false;
+            self._onReady.resolve(true);
+          }
+        });
     }
 
     self._dirs[dir] = true;
@@ -188,7 +183,7 @@ Watcher.prototype._onAdded = function (path, stat) {
     this._paths[path] = stat;
 
     if (this._isReady) {
-      this._generateSortedPaths();
+      this._pathsAreSorted = false;
 
       var event = {};
       event[path] = stat;
@@ -212,11 +207,11 @@ Watcher.prototype._onDeleted = function (path) {
     }
 
     if (this._options.debug) {
-        console.log('deleted ' + deleted.join(', '));
+        console.log('deleted ' + Object.keys(deleted).join(', '));
     }
 
     if (this._isReady) {
-      this._generateSortedPaths();
+      this._pathsAreSorted = false;
 
       this.trigger(deleted);
     }
