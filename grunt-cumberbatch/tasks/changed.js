@@ -78,8 +78,16 @@ module.exports = function(grunt) {
             return done();
         }
         var cleanupId = ++_cleanupId;
+        var originalConfig = taskConfig;
         cleanupCache[cleanupId] = {config: taskConfig, cacheDir: config.cacheDir, fileHashes: {}};
         taskConfig = grunt.util._.clone(taskConfig);
+
+        var inputGlobsGetter;
+        if (taskConfig._getInputGlobs) {
+          inputGlobsGetter = taskConfig._getInputGlobs;
+        } else if (taskConfig.options && taskConfig.options._getInputGlobs) {
+          inputGlobsGetter = taskConfig.options._getInputGlobs;
+        }
 
         // copying files to src
         if (typeof taskConfig.files === 'string') {
@@ -90,8 +98,11 @@ module.exports = function(grunt) {
             delete taskConfig.files;
         }
 
-        var fileConfigs = [];
-        var files = grunt.task.normalizeMultiTaskFiles(taskConfig, targetName);
+        var files, fileConfigs = [];
+        if (typeof inputGlobsGetter !== 'undefined') {
+          taskConfig.src = inputGlobsGetter(taskConfig);
+        }
+        files = grunt.task.normalizeMultiTaskFiles(taskConfig, targetName);
 
         // no files means we should just run the task normally
         if (!files.length) {
@@ -176,7 +187,7 @@ module.exports = function(grunt) {
                         // if we want to trigger a full rebuild, do this super
                         // aggressively and rebuild if anything has been deleted
                         // or changed
-                        taskConfig.files = files;
+                        taskConfig = originalConfig;
                     }
                 } else if (options.fileSelection === 'changed') {
                     if (numChangedFiles) {
@@ -199,6 +210,9 @@ module.exports = function(grunt) {
                             }
                         }
                     }
+
+                    delete taskConfig.src;
+                    delete taskConfig.dest;
                 } else if (options.fileSelection === 'smart') {
                   delete cleanupCache[cleanupId];
 
@@ -223,12 +237,9 @@ module.exports = function(grunt) {
                   return;
                 }
 
-                delete taskConfig.src;
-                delete taskConfig.dest;
-
                 grunt.config.set([taskName, targetName], taskConfig);
                 var tasks = [];
-                if (taskConfig.files.length) {
+                if (numChangedFiles || numDeletedFiles) {
                     // only run the target task if any inputs have changed
                     cleanupCache[cleanupId].required = fullTaskName;
                     tasks.push(fullTaskName);

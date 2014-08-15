@@ -11,6 +11,9 @@ MinimatchTree.prototype.add = function (glob, data) {
   var globRoot = this._getGlobRoot(glob);
   var hash = oid.hash(data);
   var isNegation = this._isNegation(glob);
+  if (isNegation) {
+      glob = glob.substr(1);
+  }
 
   if (globRoot === glob) {
     if (typeof(this._exactMatches[glob]) === 'undefined') {
