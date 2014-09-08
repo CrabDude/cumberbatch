@@ -1,7 +1,6 @@
-var minimatch = require('minimatch');
 var oid = require('oid');
 
-var MinimatchTree = require('./MinimatchTree');
+var MinimatchTree = require('minimagic').MinimatchTree;
 
 var GlobEmitter = function(options) {
   this._options = options || {};

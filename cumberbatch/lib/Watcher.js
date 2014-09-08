@@ -6,6 +6,7 @@ var util = require('util');
 
 var GlobEmitter = require('./GlobEmitter');
 var Q = require('kew');
+var WarmingLRU = require('./WarmingLRU');
 
 var Watcher = function(baseDir, options) {
     GlobEmitter.call(this, options);
@@ -135,27 +136,98 @@ Watcher.prototype._watchDir = function (dir, isRoot) {
     if (dir in self._dirs) return self._dirs[dir];
 
     if (isRoot) {
+        var hotInterval = this._options.hotFileInterval || 100;
+        var warmInterval = this._options.warmFileInterval || 2000;
+        var coldInterval = this._options.coldFileInterval || 4000;
+
+        var maxHotFiles = this._options.maxHotFiles || 100;
+        var maxWarmFiles = this._options.maxWarmFiles || 500;
+
+        var hotFileFilter = this._options.hotFileFilter;
+
         var options = {
           ignoreInitial: false,
-          persistent: true
+          persistent: true,
+          interval: coldInterval
         };
 
         if (self._options.ignored) {
           options.ignored = self._options.ignored;
         }
 
+        if (self._options.binaryInterval) {
+          options.binaryInterval = self._options.binaryInterval;
+        }
+
+        var fsWatcher = chokidar.watch(dir, options);
+
+        var fileLru = self._fileLru = new WarmingLRU({
+          maxHot: maxHotFiles,
+          maxWarm: maxWarmFiles
+        });
+
+        fileLru.on('filesChanged', function(files) {
+          for(var filename in files) {
+            var heat = files[filename];
+            var interval;
+            switch (heat) {
+              case 'hot':
+                interval = hotInterval;
+                break;
+              case 'warm':
+                interval = warmInterval;
+                break;
+              default:
+                interval = coldInterval;
+                break;
+            }
+            fsWatcher.setInterval(filename, interval);
+          }
+        });
+
+        var isReady = false;
+        var allTimes = [];
+
         // with fs.watch we only need to attach a watcher to the root
-        self._dirWatchers[dir] = chokidar.watch(dir, options);
-        self._dirWatchers[dir].on('all', function (ev, filename, stat) {
+        fsWatcher.on('all', function (ev, filename, stat) {
+            if (hotFileFilter && hotFileFilter(filename)) {
+              if (stat) {
+                if (!isReady) {
+                  allTimes.push({'filename':filename, 'mtime':stat.mtime.getTime()/1000});
+                } else {
+                  fileLru.set(filename, stat.mtime);
+                }
+              } else {
+                fileLru.del(filename);
+              }
+            }
+
             self._checkPath(filename, stat);
         });
-        self._dirWatchers[dir].on('ready', function () {
+
+        fsWatcher.on('ready', function () {
+          allTimes.sort(function (a, b) {
+              return b.mtime - a.mtime;
+          });
+          var end = Math.min(allTimes.length - 1, maxHotFiles + maxWarmFiles - 1);
+          for (var i = end; i >= 0; i--) {
+              var time = allTimes[i];
+              fileLru.set(time.filename, time.mtime);
+              if (i < maxHotFiles) {
+                fileLru.set(time.filename, time.mtime);
+              }
+          }
+          allTimes = undefined;
+          isReady = true;
+
           if (!self._isReady) {
             self._isReady = true;
             self._pathsAreSorted = false;
             self._onReady.resolve(true);
           }
         });
+
+        self._dirWatchers[dir] = fsWatcher;
     }
 
     self._dirs[dir] = true;

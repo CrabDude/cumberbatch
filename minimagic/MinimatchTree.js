@@ -266,4 +266,4 @@ MinimatchTree.prototype._getGlobExtensions = function (glob) {
   }
 };
 
-module.exports = MinimatchTree;
+module.exports.MinimatchTree = MinimatchTree;

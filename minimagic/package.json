@@ -1,0 +1,33 @@
+{
+  "name": "minimagic",
+  "description": "fast minimatching",
+  "version": "0.3.0",
+  "homepage": "https://github.com/azulus/minimagic",
+  "authors": [
+    "Jeremy Stanley <github@azulus.com> (https://github.com/azulus)"
+  ],
+  "contributors": [],
+  "keywords": [],
+  "main": "./MinimatchTree.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/azulus/minimagic.git"
+  },
+  "dependencies": {
+    "oid": "0.5",
+    "minimatch": "0.2"
+  },
+  "devDependencies": {
+    "grunt": "*"
+  },
+  "bugs": {
+    "url": "https://github.com/azulus/minimagic/issues"
+  },
+  "readme": "ERROR: No README data found!",
+  "_id": "minimagic@0.3.0",
+  "dist": {
+    "shasum": "f867c672f9bdc114d13e0e41b5b18c0be2451f12"
+  },
+  "_from": "minimagic@",
+  "_resolved": "https://registry.npmjs.org/minimagic/-/minimagic-0.0.1.tgz"
+}

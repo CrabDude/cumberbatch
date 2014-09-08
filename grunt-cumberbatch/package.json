@@ -1,7 +1,7 @@
 {
   "name": "grunt-cumberbatch",
   "description": "grunt utils for cumberbatch",
-  "version": "0.0.23",
+  "version": "0.0.29",
   "homepage": "https://github.com/azulus/grunt-cumberbatch",
   "authors": [
     "Jeremy Stanley <github@azulus.com> (https://github.com/azulus)"
@@ -17,7 +17,7 @@
     "url": "https://github.com/azulus/cumberbatch.git"
   },
   "dependencies": {
-    "cumberbatch": "0.1.18",
+    "cumberbatch": "*",
     "grunt": "*",
     "kew": "*"
   },
@@ -31,11 +31,11 @@
     "url": "https://github.com/azulus/cumberbatch/issues"
   },
   "readme": "ERROR: No README data found!",
-  "_id": "grunt-cumberbatch@0.0.20",
+  "_id": "grunt-cumberbatch@0.0.29",
   "dist": {
-    "shasum": "7be090420d85fd637737895aeadac408263b85d0"
+    "shasum": "89db7f1f6f6b55ba83528fd89b57a4e5794589f6"
   },
-  "_from": "grunt-cumberbatch@0.0.20",
-  "_resolved": "http://registry.npmjs.org/grunt-cumberbatch/-/grunt-cumberbatch-0.0.20.tgz",
+  "_from": "grunt-cumberbatch@",
+  "_resolved": "https://registry.npmjs.org/grunt-cumberbatch/-/grunt-cumberbatch-0.0.27.tgz",
   "_shasum": "3ddd4485b9728616e27f6f2a8f7560c12088565b"
 }

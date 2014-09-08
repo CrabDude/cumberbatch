@@ -68,6 +68,7 @@ function FSWatcher(_opts) {
   EventEmitter.call(this);
   this.watched = Object.create(null);
   this.watchers = [];
+  this._callbacks = {};
   this._foundCount = 0;
   this._handledCount = 0;
   this.closed = false;
@@ -177,7 +178,11 @@ FSWatcher.prototype._remove = function(directory, item) {
     return this._remove(fullPath, nestedItem);
   }, this);
 
-  if (this.options.usePolling) fs.unwatchFile(fullPath);
+  if (this.options.usePolling) {
+    delete this._callbacks[fullPath];
+    fs.unwatchFile(fullPath);
+    this.emit('removeFile', fullPath);
+  }
 
   // The Entry will either be a directory that just got removed
   // or a bogus entry to a file, in either case we have to remove it
@@ -228,6 +233,27 @@ FSWatcher.prototype._watchWithFsEvents = function(path) {
   return this.watchers.push(watcher);
 };
 
+FSWatcher.prototype.setInterval = function (filename, interval, callback) {
+  var self = this;
+
+  if (callback) {
+    this._callbacks[filename] = callback;
+  }
+  fs.unwatchFile(filename);
+  var options = {
+    persistent: this.options.persistent,
+    interval: interval
+  };
+
+  fs.watchFile(filename, options, function(curr, prev) {
+    if (curr.mtime.getTime() > prev.mtime.getTime()) {
+      self._callbacks[filename](filename, curr);
+    }
+  });
+
+  this.emit('changeInterval', filename, interval);
+};
+
 // Private: Watch file for changes with fs.watchFile or fs.watch.
 
 // item     - string, path to file or directory.
@@ -246,13 +272,10 @@ FSWatcher.prototype._watch = function(item, callback) {
   options = {persistent: this.options.persistent};
 
   if (this.options.usePolling) {
-    options.interval = this.enableBinaryInterval && isBinaryPath(basename) ?
-      this.options.binaryInterval : this.options.interval;
-    fs.watchFile(item, options, function(curr, prev) {
-      if (curr.mtime.getTime() > prev.mtime.getTime()) {
-        callback(item, curr);
-      }
-    });
+    this.setInterval(
+      item,
+      this.enableBinaryInterval && isBinaryPath(basename) ? this.options.binaryInterval : this.options.interval,
+      callback);
   } else {
     watcher = fs.watch(item, options, function(event, path) {
       callback(item);
