@@ -1,11 +1,13 @@
-var Task = function(config) {
+var Task = function(taskName, config, gyroConfig) {
     this._config = config;
     this._duration = undefined;
     this._error = undefined;
+    this._gyroConfig = gyroConfig;
     this._isEmpty = false;
     this._nextRunMs = undefined;
     this._process = undefined;
     this._state = undefined;
+    this._taskName = taskName;
 };
 
 Task.prototype.getWatchedGlobs = function() {

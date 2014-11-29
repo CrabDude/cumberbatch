@@ -1,7 +1,6 @@
 var colors = require('colors');
 var events = require('events');
 var exec = require('child_process').exec;
-var gruntHelpers = require('./gruntHelpers');
 var helpers = require('./helpers');
 var util = require('util');
 var _ = require('lodash');
@@ -60,7 +59,7 @@ TaskManager.prototype.register = function(taskName, options, force) {
     delete this._neededRegistrations[taskName];
 
     options = options || {};
-    var task = this._tasks[taskName] = TaskFactory.getGruntTask(options || {});
+    var task = this._tasks[taskName] = TaskFactory.getGruntTask(taskName, options || {}, this._options);
     task.setState(TaskState.INITIALIZING);
     var deps = task.getConfig().deps || [];
     for (var i = 0; i < deps.length; i++) {
@@ -79,9 +78,9 @@ TaskManager.prototype.register = function(taskName, options, force) {
         'fileChanged'
     ];
     if (buildWhen.indexOf('fileChanged') !== -1) {
+        var globData = task.getWatchedGlobs();
         var self = this;
-        var globData = gruntHelpers.getGlobsForTarget(taskName, this._options
-            .gruntConfig);
+
         _.forEach(globData, function(data) {
             var callback = self._trigger.bind(self, taskName,
                 TaskAction.CHANGED);
@@ -150,10 +149,10 @@ TaskManager.prototype._registerParent = function(taskName, options) {
         }
     }
 
-    var task = this._tasks[taskName] = TaskFactory.getGruntTask({
+    var task = this._tasks[taskName] = TaskFactory.getGruntTask(taskName, {
         buildWhen: ['isDependency', 'dependencyBuilt'],
         deps: deps
-    });
+    }, this._options);
     task.setEmpty(true);
     task.setState(TaskState.INITIALIZING);
 };

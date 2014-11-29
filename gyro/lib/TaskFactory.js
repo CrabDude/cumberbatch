@@ -2,8 +2,8 @@ var GruntTask = require('./tasks/GruntTask.js');
 
 var TaskFactory = function() {};
 
-TaskFactory.prototype.getGruntTask = function(options) {
-    return new GruntTask(options);
+TaskFactory.prototype.getGruntTask = function(taskName, taskConfig, gyroConfig) {
+    return new GruntTask(taskName, taskConfig, gyroConfig);
 };
 
 TaskFactory.prototype.getExecTask = function() {
