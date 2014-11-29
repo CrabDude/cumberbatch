@@ -30,7 +30,6 @@ var TaskManager = function(options) {
     this._delayedRegistrations = {};
     this._neededRegistrations = {};
     this._tasks = {};
-    this._taskDependencies = {};
     this._reverseTaskDependencies = {};
     this._watcherListeners = [];
 
@@ -165,15 +164,11 @@ TaskManager.prototype._registerParent = function(taskName, options) {
 TaskManager.prototype._buildDependencyMap = function() {
     var self = this;
 
-    // create the true dependency map
-    this._taskDependencies = {};
-
     // initialize all of the task dependencies
     var initializedTask;
 
     do {
         initializedTask = false;
-        iters = 0;
 
         // loop through all of the tasks and build a dependency array for
         // each based on recursive dependencies
@@ -192,13 +187,11 @@ TaskManager.prototype._buildDependencyMap = function() {
             }
 
             // flatten all recursive dependencies
-            self._taskDependencies[taskName] = [].concat(deps);
+            var newDeps = [].concat(deps);
             _.forEach(deps, function(dep) {
-                self._taskDependencies[taskName] =
-                    self._taskDependencies[taskName].concat(
-                        self._taskDependencies[dep]
-                    );
+                newDeps = newDeps.concat(self._tasks[dep].getDependencies());
             });
+            self._tasks[taskName].setDependencies(_.uniq(newDeps));
 
             // initialize the task state
             self._tasks[taskName].setState(TaskState.PENDING);
@@ -226,7 +219,9 @@ TaskManager.prototype._buildReverseDependencyMap = function() {
         }
     }
 
-    _.forEach(this._taskDependencies, function(deps, taskName) {
+    _.forEach(this._tasks, function(task, taskName) {
+        var deps = task.getDependencies();
+
         _.forEach(deps, function(dep) {
             if (!reverseDeps[dep]) {
                 reverseDeps[dep] = {};
@@ -270,7 +265,7 @@ TaskManager.prototype._runNext = function() {
         }
 
         // verify that all dependencies are in a good state
-        var deps = self._taskDependencies[taskName];
+        var deps = self._tasks[taskName].getDependencies();
         var hasPendingDeps = _.some(deps, function(dep) {
             return self._tasks[dep].getState() !==
                 TaskState.SUCCEEDED;
@@ -389,7 +384,7 @@ TaskManager.prototype.getTaskStates = function() {
         if (task.isEmpty()) continue;
 
         tasksData[taskName] = {
-            dependencies: this._taskDependencies[taskName] || [],
+            dependencies: task.getDependencies(),
             errorData: task.getError(),
             lastRunMs: task.getLastDuration(),
             state: task.getState(),
