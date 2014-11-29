@@ -1,6 +1,4 @@
-var colors = require('colors');
 var events = require('events');
-var exec = require('child_process').exec;
 var helpers = require('./helpers');
 var util = require('util');
 var _ = require('lodash');
@@ -23,7 +21,6 @@ var TaskManager = function(options) {
     this._options = options;
     this._targets = options.targets;
     this._maxProcesses = options.maxProcesses;
-    this._gruntCommand = options.gruntPath || 'grunt';
 
     this._runningProcesses = 0;
 
@@ -33,6 +30,8 @@ var TaskManager = function(options) {
     this._watcherListeners = [];
 
     this._bound_runNext = this._runNext.bind(this);
+    this._bound_runTask = this._runTask.bind(this);
+    this._bound_sortTasksByDependencies = this._sortTasksByDependencies.bind(this);
 };
 util.inherits(TaskManager, events.EventEmitter);
 
@@ -95,7 +94,7 @@ TaskManager.prototype.register = function(taskName, options, force) {
  */
 TaskManager.prototype.start = function() {
     this._buildDependencyMap();
-    this._buildReverseDependencyMap();
+    this._buildDependentMap();
 
     var started = false;
     var self = this;
@@ -204,7 +203,7 @@ TaskManager.prototype._buildDependencyMap = function() {
  *
  * @private
  */
-TaskManager.prototype._buildReverseDependencyMap = function() {
+TaskManager.prototype._buildDependentMap = function() {
     var reverseDeps = {};
     var self = this;
 
@@ -234,85 +233,102 @@ TaskManager.prototype._buildReverseDependencyMap = function() {
     });
 };
 
+TaskManager.prototype._hasPendingDeps = function (taskName) {
+    var deps = this._tasks[taskName].getDependencies();
+
+    for (var i = 0; i < deps.length; i++) {
+        if (this._tasks[deps[i]].getState() !== TaskState.SUCCEEDED) {
+            return true;
+        }
+    }
+
+    return false;
+};
+
+TaskManager.prototype._sortTasksByDependencies = function(a, b) {
+    var aDeps = this._tasks[a].getDependents() || [];
+    var bDeps = this._tasks[b].getDependents() || [];
+    return bDeps.length - aDeps.length;
+};
+
 /**
  * Runs the next task if any tasks need to be ran
  *
  * @private
  */
 TaskManager.prototype._runNext = function() {
-    var self = this;
-    var foundDelayedTasks = false;
+    var deps;
+    var i;
+    var taskName;
+    var task;
+    var nearestDelayMs = -1;
+    var pendingTasks = [];
+    var pendingTaskDependentMap = {};
 
-    // create a list of all the task names to be run
-    var pendingTasks = _.filter(Object.keys(this._tasks), function(taskName) {
-        var state = self._tasks[taskName].getState();
+    // find all pending tasks to run
+    for (taskName in this._tasks) {
+        task = this._tasks[taskName];
 
-        // verify the task isn't running
-        if (state !== TaskState.PENDING) {
-            return false;
+        if (task.getState() !== TaskState.PENDING) {
+            // task isn't in a pending state
+            continue;
         }
 
-        if (typeof self._tasks[taskName].getNextRunMs() !== 'undefined') {
-            // if running of the task is delayed, only run if the specified timestamp
-            // has been passed
-            if (Date.now() < self._tasks[taskName].getNextRunMs()) {
-                foundDelayedTasks = true;
-                return false;
+        if (this._hasPendingDeps(taskName)) {
+            // task has non-successful dependencies
+            continue;
+        }
+
+        var nextRunMs = task.getNextRunMs();
+        if (nextRunMs && nextRunMs > Date.now()) {
+            // task has a next run time, set the next time to run
+            nearestDelayMs = nearestDelayMs === -1 ? nextRunMs : Math.min(nearestDelayMs, nextRunMs);
+
+        } else {
+            // task is safe to run, stash all dependencies in a map for ordering reasons
+            pendingTasks.push(taskName);
+            deps = task.getDependents();
+            for (i = 0; i < deps.length; i++) {
+                pendingTaskDependentMap[[deps[i]]] = true;
             }
         }
+    }
 
-        // verify that all dependencies are in a good state
-        var deps = self._tasks[taskName].getDependencies();
-        var hasPendingDeps = _.some(deps, function(dep) {
-            return self._tasks[dep].getState() !==
-                TaskState.SUCCEEDED;
-        });
-        if (hasPendingDeps) {
-            return false;
-        }
+    // reduce the list of tasks based on cross-dependencies
+    var tasksToRun = [];
+    for (i = 0; i < pendingTasks.length; i++) {
+        taskName = pendingTasks[i];
+        if (pendingTaskDependentMap[taskName] !== true) {
+            // if 2 tasks need to run, don't run the dependency
+            deps = this._tasks[taskName].getDependents();
 
-        return true;
-    });
+            var hasDependenciesInProgress = false;
 
-    // build a list of downstream dependencies for tasks to be run
-    var pendingTaskReverseDependencies = [];
-    _.forEach(pendingTasks, function(taskName) {
-        var reverseDeps = self._tasks[taskName].getDependents();
-        pendingTaskReverseDependencies =
-            pendingTaskReverseDependencies.concat(reverseDeps);
-    });
-
-    // filter to only tasks which have no inter-dependencies
-    var tasksToRun = _.filter(pendingTasks, function(taskName) {
-        return pendingTaskReverseDependencies.indexOf(taskName) ===
-            -1;
-    });
-
-    // filter out any tasks which have downstream dependencies running to prevent
-    // weird race conditions
-    tasksToRun = _.filter(tasksToRun, function(taskName) {
-        var reverseDeps = self._tasks[taskName].getDependents();
-        for (var i = 0; i < reverseDeps.length; i++) {
-            var depState = self._tasks[reverseDeps[i]].getState();
-            if (depState === TaskState.IN_PROGRESS ||
-                depState === TaskState.IN_PROGRESS_MUST_RERUN) {
-                // don't run if any downstream dependencies are running
-                return false;
+            // if 2 tasks need to run, don't run the dependency
+            deps = this._tasks[taskName].getDependents();
+            for (j = 0; j < deps.length; j++) {
+                var depState = this._tasks[deps[i]].getState();
+                if (depState === TaskState.IN_PROGRESS ||
+                    depState === TaskState.IN_PROGRESS_MUST_RERUN) {
+                    // if the task has dependents running, wait for them to finish
+                    hasDependenciesInProgress = true;
+                    break;
+                }
             }
+
+            if (hasDependenciesInProgress === false) {
+                tasksToRun.push(taskName);
+            }
+
         }
-        return true;
-    });
+    }
 
     if (typeof this._maxProcesses !== 'undefined') {
         var runnersAvailable = this._maxProcesses - this._runningProcesses;
         if (tasksToRun.length > runnersAvailable) {
             // if we have limited task runners available, prioritize by number of
             // downstream tasks
-            tasksToRun.sort(function(a, b) {
-                var aDeps = self._tasks[a].getDependents() || [];
-                var bDeps = self._tasks[b].getDependents() || [];
-                return bDeps.length - aDeps.length;
-            });
+            tasksToRun.sort(this._bound_sortTasksByDependencies);
 
             // reduce to the number of runners
             tasksToRun = tasksToRun.slice(0, runnersAvailable);
@@ -320,57 +336,41 @@ TaskManager.prototype._runNext = function() {
     }
 
     // run each task that needs to be ran
-    _.forEach(tasksToRun, function(taskName) {
-        self._tasks[taskName].setNextRunMs(undefined);
+    _.forEach(tasksToRun, this._bound_runTask);
 
-        // mark the task as in progress
-        self._trigger(taskName, TaskAction.RUNNING);
-
-        // build the command to run and fold in the decorator as needed
-        var taskConfig = self._tasks[taskName].getConfig();
-
-        // if the task is a pass through, immediately trigger success
-        if (self._tasks[taskName].isEmpty()) {
-            self._trigger(taskName, TaskAction.SUCCEEDED);
-            return;
-        }
-
-        var taskCommand = self._gruntCommand + ' ' + (
-            taskConfig.decorator ? taskConfig.decorator + ':' :
-            ''
-        ) + taskName + (self._options.gruntOptions || '');
-
-        // actually spawn the process
-        var startTime = Date.now();
-        self._runningProcesses++;
-        self._tasks[taskName].setProcess(exec(taskCommand, function(
-            err, stdout,
-            stderr) {
-            self._runningProcesses--;
-            self._tasks[taskName].setLastDuration(Date.now() -
-                startTime);
-
-            self._tasks[taskName].setProcess(undefined);
-            if (err) {
-                self._tasks[taskName].setError(stderr,
-                    stdout);
-            } else {
-                self._tasks[taskName].setError(
-                    undefined);
-            }
-            self._trigger(taskName, (!!err) ?
-                TaskAction.FAILED : TaskAction.SUCCEEDED
-            );
-        }));
-
-        self._tasks[taskName].getProcess().stdout.pipe(process.stdout);
-        self._tasks[taskName].getProcess().stderr.pipe(process.stderr);
-    });
-
-    if (foundDelayedTasks) {
+    if (nearestDelayMs !== -1) {
         // some tasks are delayed, try again in 200ms
-        setTimeout(this._bound_runNext, 200);
+        setTimeout(this._bound_runNext, nearestDelayMs - Date.now());
     }
+};
+
+TaskManager.prototype._runTask = function(taskName) {
+    var task = this._tasks[taskName];
+
+    task.setNextRunMs(undefined);
+
+    // mark the task as in progress
+    this._trigger(taskName, TaskAction.RUNNING);
+
+    // build the command to run and fold in the decorator as needed
+    var taskConfig = task.getConfig();
+
+    // if the task is a pass through, immediately trigger success
+    if (task.isEmpty()) {
+        this._trigger(taskName, TaskAction.SUCCEEDED);
+        return;
+    }
+
+    // actually spawn the process
+    var startTime = Date.now();
+    var self = this;
+    this._runningProcesses++;
+
+    task.run(function (err) {
+        task.setLastDuration(Date.now() - startTime);
+        self._runningProcesses--;
+        self._trigger(taskName, !!err ? TaskAction.FAILED : TaskAction.SUCCEEDED);
+    });
 };
 
 TaskManager.prototype.getTaskStates = function() {
