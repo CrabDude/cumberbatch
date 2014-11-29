@@ -43,6 +43,8 @@ util.inherits(TaskManager, events.EventEmitter);
  * @param  {boolean} force force adding this task immediately
  */
 TaskManager.prototype.register = function(taskName, options, force) {
+    if (!options.taskType) options.taskType = 'grunt';
+
     if (this._targets && this._targets.indexOf(taskName) === -1 && !force) {
         this._delayedRegistrations[taskName] = options;
         return;
@@ -56,7 +58,7 @@ TaskManager.prototype.register = function(taskName, options, force) {
     delete this._neededRegistrations[taskName];
 
     options = options || {};
-    var task = this._tasks[taskName] = TaskFactory.getGruntTask(taskName, options || {}, this._options);
+    var task = this._tasks[taskName] = TaskFactory.getTask(taskName, options || {}, this._options);
     task.setState(TaskState.INITIALIZING);
     var deps = task.getConfig().deps || [];
     for (var i = 0; i < deps.length; i++) {
@@ -146,7 +148,7 @@ TaskManager.prototype._registerParent = function(taskName, options) {
         }
     }
 
-    var task = this._tasks[taskName] = TaskFactory.getGruntTask(taskName, {
+    var task = this._tasks[taskName] = TaskFactory.getTask(taskName, {
         buildWhen: ['isDependency', 'dependencyBuilt'],
         deps: deps
     }, this._options);

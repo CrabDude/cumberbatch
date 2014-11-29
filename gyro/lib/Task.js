@@ -12,10 +12,6 @@ var Task = function(taskName, config, gyroConfig) {
     this._taskName = taskName;
 };
 
-Task.prototype.getWatchedGlobs = function() {
-
-};
-
 Task.prototype.setDependents = function (deps) {
     this._dependents = deps;
 };
@@ -30,10 +26,6 @@ Task.prototype.setDependencies = function (deps) {
 
 Task.prototype.getDependencies = function () {
     return this._dependencies;
-};
-
-Task.prototype.run = function() {
-
 };
 
 Task.prototype.isEmpty = function() {
