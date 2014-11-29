@@ -30,7 +30,6 @@ var TaskManager = function(options) {
     this._delayedRegistrations = {};
     this._neededRegistrations = {};
     this._tasks = {};
-    this._reverseTaskDependencies = {};
     this._watcherListeners = [];
 
     this._bound_runNext = this._runNext.bind(this);
@@ -230,10 +229,8 @@ TaskManager.prototype._buildReverseDependencyMap = function() {
         });
     });
 
-    this._reverseTaskDependencies = {};
     _.forEach(reverseDeps, function(depMap, taskName) {
-        self._reverseTaskDependencies[taskName] = Object.keys(
-            depMap);
+        self._tasks[taskName].setDependents(Object.keys(depMap));
     });
 };
 
@@ -280,7 +277,7 @@ TaskManager.prototype._runNext = function() {
     // build a list of downstream dependencies for tasks to be run
     var pendingTaskReverseDependencies = [];
     _.forEach(pendingTasks, function(taskName) {
-        var reverseDeps = self._reverseTaskDependencies[taskName] || [];
+        var reverseDeps = self._tasks[taskName].getDependents();
         pendingTaskReverseDependencies =
             pendingTaskReverseDependencies.concat(reverseDeps);
     });
@@ -294,7 +291,7 @@ TaskManager.prototype._runNext = function() {
     // filter out any tasks which have downstream dependencies running to prevent
     // weird race conditions
     tasksToRun = _.filter(tasksToRun, function(taskName) {
-        var reverseDeps = self._reverseTaskDependencies[taskName] || [];
+        var reverseDeps = self._tasks[taskName].getDependents();
         for (var i = 0; i < reverseDeps.length; i++) {
             var depState = self._tasks[reverseDeps[i]].getState();
             if (depState === TaskState.IN_PROGRESS ||
@@ -312,8 +309,8 @@ TaskManager.prototype._runNext = function() {
             // if we have limited task runners available, prioritize by number of
             // downstream tasks
             tasksToRun.sort(function(a, b) {
-                var aDeps = self._reverseTaskDependencies[a] || [];
-                var bDeps = self._reverseTaskDependencies[b] || [];
+                var aDeps = self._tasks[a].getDependents() || [];
+                var bDeps = self._tasks[b].getDependents() || [];
                 return bDeps.length - aDeps.length;
             });
 
@@ -469,7 +466,7 @@ TaskManager.prototype._trigger = function(taskName, action) {
                 this._trigger(taskName, TaskAction.RUN);
             }
 
-            _.forEach(this._reverseTaskDependencies[taskName], function(dep) {
+            _.forEach(this._tasks[taskName].getDependents(), function(dep) {
                 var buildWhen = self._tasks[dep].getConfig().buildWhen || [];
                 var deps = self._tasks[dep].getConfig().deps || [];
                 if (!Array.isArray(buildWhen)) buildWhen = [

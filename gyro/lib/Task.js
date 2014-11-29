@@ -1,6 +1,7 @@
 var Task = function(taskName, config, gyroConfig) {
     this._config = config;
     this._dependencies = [];
+    this._dependents = [];
     this._duration = undefined;
     this._error = undefined;
     this._gyroConfig = gyroConfig;
@@ -13,6 +14,14 @@ var Task = function(taskName, config, gyroConfig) {
 
 Task.prototype.getWatchedGlobs = function() {
 
+};
+
+Task.prototype.setDependents = function (deps) {
+    this._dependents = deps;
+};
+
+Task.prototype.getDependents = function () {
+    return this._dependents;
 };
 
 Task.prototype.setDependencies = function (deps) {
