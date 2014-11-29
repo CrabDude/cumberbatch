@@ -1,7 +1,7 @@
 {
   "name": "gyro",
   "description": "cumberbatch-based build system",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "homepage": "https://github.com/azulus/cumberbatch",
   "authors": [
     "Jeremy Stanley <github@azulus.com> (https://github.com/azulus)"
@@ -15,18 +15,31 @@
   },
   "dependencies": {
     "colors": "0.6",
-    "cumberbatch": "*",
+    "cumberbatch": "0.2.0",
     "grunt": "0.4.5",
     "lodash": "2.4.1"
   },
   "bugs": {
     "url": "https://github.com/azulus/cumberbatch/issues"
   },
-  "readme": "ERROR: No README data found!",
-  "_id": "gyro@0.0.4",
+  "_id": "gyro@0.0.5",
   "dist": {
-    "shasum": "e50db7cf314983a7124c56684436b277c4e1ec29"
+    "shasum": "facf747a2def76d77de417ba0bdcc574e79f08c0",
+    "tarball": "http://registry.npmjs.org/gyro/-/gyro-0.0.5.tgz"
   },
   "_from": "gyro@",
-  "_resolved": "https://registry.npmjs.org/gyro/-/gyro-0.0.3.tgz"
+  "_resolved": "https://registry.npmjs.org/gyro/-/gyro-0.0.5.tgz",
+  "_shasum": "facf747a2def76d77de417ba0bdcc574e79f08c0",
+  "_npmVersion": "1.4.9",
+  "_npmUser": {
+    "name": "azulus",
+    "email": "npm@azulus.com"
+  },
+  "maintainers": [
+    {
+      "name": "azulus",
+      "email": "npm@azulus.com"
+    }
+  ],
+  "directories": {}
 }
