@@ -22,24 +22,11 @@
   "bugs": {
     "url": "https://github.com/azulus/cumberbatch/issues"
   },
-  "_id": "gyro@0.0.5",
+  "readme": "ERROR: No README data found!",
+  "_id": "gyro@0.0.4",
   "dist": {
-    "shasum": "facf747a2def76d77de417ba0bdcc574e79f08c0",
-    "tarball": "http://registry.npmjs.org/gyro/-/gyro-0.0.5.tgz"
+    "shasum": "e50db7cf314983a7124c56684436b277c4e1ec29"
   },
   "_from": "gyro@",
-  "_resolved": "https://registry.npmjs.org/gyro/-/gyro-0.0.5.tgz",
-  "_shasum": "facf747a2def76d77de417ba0bdcc574e79f08c0",
-  "_npmVersion": "1.4.9",
-  "_npmUser": {
-    "name": "azulus",
-    "email": "npm@azulus.com"
-  },
-  "maintainers": [
-    {
-      "name": "azulus",
-      "email": "npm@azulus.com"
-    }
-  ],
-  "directories": {}
+  "_resolved": "https://registry.npmjs.org/gyro/-/gyro-0.0.3.tgz"
 }

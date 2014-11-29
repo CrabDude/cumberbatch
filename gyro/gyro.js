@@ -1,7 +1,5 @@
-var taskUtils = require('./lib/task.js');
-
 module.exports = {
-  TaskManager: taskUtils.TaskManager,
-  TaskState: taskUtils.TaskState,
-  TaskAction: taskUtils.TaskAction
+  TaskManager: require('./lib/TaskManager.js'),
+  TaskState: require('./lib/TaskState.js'),
+  TaskAction: require('./lib/TaskAction.js')
 };
