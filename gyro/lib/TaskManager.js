@@ -6,6 +6,7 @@ var helpers = require('./helpers');
 var util = require('util');
 var _ = require('lodash');
 
+var Task = require('./Task');
 var TaskState = require('./TaskState');
 var TaskAction = require('./TaskAction');
 
@@ -24,10 +25,11 @@ var TaskManager = function(options) {
   this._runningProcesses = 0;
   this._delayedRegistrations = {};
   this._neededRegistrations = {};
+
+  this._tasks = {};
+
   this._taskStates = {};
   this._taskConfig = {};
-  this._taskErrors = {};
-  this._taskTimes = {};
   this._taskProcesses = {};
   this._taskDependencies = {};
   this._reverseTaskDependencies = {};
@@ -60,6 +62,7 @@ TaskManager.prototype.register = function(taskName, options, force) {
   delete this._neededRegistrations[taskName];
 
   this._taskStates[taskName] = TaskState.INITIALIZING;
+  this._tasks[taskName] = new Task(options || {});
   this._taskConfig[taskName] = options || {};
   var deps = this._taskConfig[taskName].deps || [];
   for (var i = 0; i < deps.length; i++) {
@@ -346,16 +349,13 @@ TaskManager.prototype._runNext = function() {
     self._taskProcesses[taskName] = exec(taskCommand, function(err, stdout,
       stderr) {
       self._runningProcesses--;
-      self._taskTimes[taskName] = Date.now() - startTime;
+      self._tasks[taskName].setLastDuration(Date.now() - startTime);
 
       delete self._taskProcesses[taskName];
       if (err) {
-        self._taskErrors[taskName] = {
-          stderr: stderr,
-          stdout: stdout
-        };
+        self._tasks[taskName].setError(stderr, stdout);
       } else {
-        delete self._taskErrors[taskName];
+        self._tasks[taskName].setError(undefined);
       }
       self._trigger(taskName, (!!err) ? TaskAction.FAILED : TaskAction.SUCCEEDED);
     });
@@ -378,9 +378,9 @@ TaskManager.prototype.getTaskStates = function () {
         var taskData = {};
         taskData.dependencies = this._taskDependencies[taskName] || [];
         taskData.state = this._taskStates[taskName];
-        taskData.lastRunMs = this._taskTimes[taskName];
-        taskData.errorData = this._taskErrors[taskName];
-        taskData.tags = this._taskConfig[taskName].tags || ['uncategorized'];
+        taskData.lastRunMs = this._tasks[taskName].getLastDuration();
+        taskData.errorData = this._tasks[taskName].getError();
+        taskData.tags = this._tasks[taskName].getTags();
 
         tasksData[taskName] = taskData;
     }
