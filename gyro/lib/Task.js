@@ -2,6 +2,7 @@ var Task = function(options) {
     this._duration = null;
     this._options = options;
     this._error = undefined;
+    this._state = null;
 };
 
 Task.prototype.getWatchedGlobs = function () {
@@ -12,12 +13,12 @@ Task.prototype.run = function() {
 
 };
 
-Task.prototype.setState = function() {
-
+Task.prototype.setState = function(state) {
+    this._state = state;
 };
 
 Task.prototype.getState = function() {
-
+    return this._state;
 };
 
 Task.prototype.setError = function(stderr, stdout) {

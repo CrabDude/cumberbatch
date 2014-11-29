@@ -28,7 +28,6 @@ var TaskManager = function(options) {
 
   this._tasks = {};
 
-  this._taskStates = {};
   this._taskConfig = {};
   this._taskProcesses = {};
   this._taskDependencies = {};
@@ -61,8 +60,8 @@ TaskManager.prototype.register = function(taskName, options, force) {
 
   delete this._neededRegistrations[taskName];
 
-  this._taskStates[taskName] = TaskState.INITIALIZING;
   this._tasks[taskName] = new Task(options || {});
+  this._tasks[taskName].setState(TaskState.INITIALIZING);
   this._taskConfig[taskName] = options || {};
   var deps = this._taskConfig[taskName].deps || [];
   for (var i = 0; i < deps.length; i++) {
@@ -153,12 +152,12 @@ TaskManager.prototype._registerParent = function (taskName, options) {
       }
   }
 
-  this._taskStates[taskName] = TaskState.INITIALIZING;
-  this._taskConfig[taskName] = {
+  this._tasks[taskName] = new Task({
     buildWhen: ['isDependency', 'dependencyBuilt'],
     isEmpty: true,
     deps: deps
-  };
+  });
+  this._tasks[taskName].setState(TaskState.INITIALIZING);
 };
 
 /**
@@ -182,12 +181,12 @@ TaskManager.prototype._buildDependencyMap = function() {
     // loop through all of the tasks and build a dependency array for
     // each based on recursive dependencies
     _.forEach(this._taskConfig, function(taskConfig, taskName) {
-      if (self._taskStates[taskName] !== TaskState.INITIALIZING) return;
+      if (self._tasks[taskName].getState() !== TaskState.INITIALIZING) return;
       var deps = taskConfig.deps || [];
 
       // check to see if any dependencies haven't resolved yet
       var hasPendingDeps = _.some(deps, function(dep) {
-        return self._taskStates[dep] !== TaskState.PENDING;
+        return self._tasks[dep].getState() !== TaskState.PENDING;
       });
       if (hasPendingDeps) {
           return;
@@ -203,7 +202,8 @@ TaskManager.prototype._buildDependencyMap = function() {
       });
 
       // initialize the task state
-      self._taskStates[taskName] = TaskState.PENDING;      initializedTask = true;
+      self._tasks[taskName].setState(TaskState.PENDING);
+      initializedTask = true;
     });
   } while (initializedTask);
 };
@@ -251,8 +251,8 @@ TaskManager.prototype._runNext = function() {
   var foundDelayedTasks = false;
 
   // create a list of all the task names to be run
-  var pendingTasks = _.filter(Object.keys(this._taskStates), function(taskName) {
-    var state = self._taskStates[taskName];
+  var pendingTasks = _.filter(Object.keys(this._tasks), function(taskName) {
+    var state = self._tasks[taskName].getState();
 
     // verify the task isn't running
     if (state !== TaskState.PENDING) {
@@ -271,7 +271,7 @@ TaskManager.prototype._runNext = function() {
     // verify that all dependencies are in a good state
     var deps = self._taskDependencies[taskName];
     var hasPendingDeps = _.some(deps, function(dep) {
-      return self._taskStates[dep] !== TaskState.SUCCEEDED;
+      return self._tasks[dep].getState() !== TaskState.SUCCEEDED;
     });
     if (hasPendingDeps) {
         return false;
@@ -297,7 +297,7 @@ TaskManager.prototype._runNext = function() {
   tasksToRun = _.filter(tasksToRun, function (taskName) {
       var reverseDeps = self._reverseTaskDependencies[taskName] || [];
       for (var i = 0; i < reverseDeps.length; i++) {
-          var depState = self._taskStates[reverseDeps[i]];
+          var depState = self._tasks[reverseDeps[i]].getState();
           if (depState === TaskState.IN_PROGRESS ||
               depState === TaskState.IN_PROGRESS_MUST_RERUN) {
             // don't run if any downstream dependencies are running
@@ -372,12 +372,12 @@ TaskManager.prototype._runNext = function() {
 
 TaskManager.prototype.getTaskStates = function () {
     var tasksData = {};
-    for (var taskName in this._taskStates) {
+    for (var taskName in this._tasks) {
         if (this._taskConfig[taskName].isEmpty) continue;
 
         var taskData = {};
         taskData.dependencies = this._taskDependencies[taskName] || [];
-        taskData.state = this._taskStates[taskName];
+        taskData.state = this._tasks[taskName].getState();
         taskData.lastRunMs = this._tasks[taskName].getLastDuration();
         taskData.errorData = this._tasks[taskName].getError();
         taskData.tags = this._tasks[taskName].getTags();
@@ -396,12 +396,12 @@ TaskManager.prototype.getTaskStates = function () {
  */
 TaskManager.prototype._trigger = function(taskName, action) {
   var self = this;
-  var currentState = this._taskStates[taskName];
+  var currentState = this._tasks[taskName].getState();
 
   switch (action) {
     case TaskAction.RUNNING:
       // starting to run the task, mark it as in progress
-      this._taskStates[taskName] = TaskState.IN_PROGRESS;
+      this._tasks[taskName].setState(TaskState.IN_PROGRESS);
       break;
 
     case TaskAction.CHANGED:
@@ -431,7 +431,7 @@ TaskManager.prototype._trigger = function(taskName, action) {
       } else if (currentState !== TaskState.IN_PROGRESS && currentState !==
         TaskState.IN_PROGRESS_MUST_RERUN) {
         // task is not running, mark it as pending
-        this._taskStates[taskName] = TaskState.PENDING;
+        this._tasks[taskName].setState(TaskState.PENDING);
 
       } else {
         // task is in progress, check whether we should kill the running
@@ -439,7 +439,7 @@ TaskManager.prototype._trigger = function(taskName, action) {
         var taskConfig = this._taskConfig[taskName];
         var ifRunning = taskConfig.ifRunning || 'wait';
 
-        this._taskStates[taskName] = TaskState.IN_PROGRESS_MUST_RERUN;
+        this._tasks[taskName].setState(TaskState.IN_PROGRESS_MUST_RERUN);
 
         if (ifRunning === 'kill') {
           if (this._taskProcesses[taskName]) {
@@ -452,7 +452,7 @@ TaskManager.prototype._trigger = function(taskName, action) {
 
     case TaskAction.SUCCEEDED:
       // the task succeeded move to a success state and potentially rerun
-      this._taskStates[taskName] = TaskState.SUCCEEDED;
+      this._tasks[taskName].setState(TaskState.SUCCEEDED);
       if (currentState === TaskState.IN_PROGRESS_MUST_RERUN) {
         this._trigger(taskName, TaskAction.RUN);
       }
@@ -475,16 +475,16 @@ TaskManager.prototype._trigger = function(taskName, action) {
 
     case TaskAction.FAILED:
       // the task failed move to a failure state and potentially rerun
-      this._taskStates[taskName] = TaskState.FAILED;
+      this._tasks[taskName].setState(TaskState.FAILED);
       if (currentState === TaskState.IN_PROGRESS_MUST_RERUN) {
         this._trigger(taskName, TaskAction.RUN);
       }
       break;
   }
 
-  if (this._taskStates[taskName] !== currentState) {
+  if (this._tasks[taskName].getState() !== currentState) {
       process.nextTick(this._bound_runNext);
-      this.emit('taskStateChange', taskName, currentState, this._taskStates[taskName]);
+      this.emit('taskStateChange', taskName, currentState, this._tasks[taskName].getState());
   }
 };
 
