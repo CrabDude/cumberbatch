@@ -20,10 +20,10 @@ if (process.env.NODE_IS_CHILD) {
     })
 } else {
     var gruntHelpers = require('../gruntHelpers');
-    var tasks = [];
+    var tasks = {};
     var util = require('util');
 
-    var createTask = function() {
+    var createTask = function(gruntConfigPath) {
         var task = {};
 
         task.process = fork(__dirname + '/GruntPoolTask.js', {
@@ -48,11 +48,16 @@ if (process.env.NODE_IS_CHILD) {
             console.error(strErr);
         });
 
+        task.process.send({gruntFile:gruntConfigPath});
+
         return task;
     };
 
-    var getTask = function() {
-        return tasks.length ? tasks.shift() : createTask();
+    var getTask = function(gruntConfigPath) {
+        if (!tasks[gruntConfigPath]) {
+            tasks[gruntConfigPath] = [];
+        }
+        return tasks[gruntConfigPath].length ? tasks[gruntConfigPath].shift() : createTask(gruntConfigPath);
     };
 
     var Task = require('../Task.js');
@@ -74,7 +79,7 @@ if (process.env.NODE_IS_CHILD) {
             ''
         ) + this._taskName;
 
-        var task = getTask();
+        var task = getTask(this._gyroConfig.gruntConfigPath);
         task.process.on('exit', function (code) {
             if (code !== 0) {
                 task.err = task.out;
@@ -89,13 +94,14 @@ if (process.env.NODE_IS_CHILD) {
             callback(this.getError());
         }.bind(this));
 
-        task.process.send({gruntFile:this._gyroConfig.gruntConfigPath});
         task.process.send({gruntFile:this._gyroConfig.gruntConfigPath, task:gruntCommand});
     };
 
     setInterval(function() {
-        while (tasks.length < 20) {
-            tasks.push(createTask());
+        for (var gruntConfig in tasks) {
+            while (tasks[gruntConfig].length < 10) {
+                tasks[gruntConfig].push(createTask(gruntConfig));
+            }
         }
     }, 1000);
 
