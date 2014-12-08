@@ -1,7 +1,7 @@
 {
   "name": "grunt-cumberbatch",
   "description": "grunt utils for cumberbatch",
-  "version": "0.0.29",
+  "version": "0.1.1",
   "homepage": "https://github.com/azulus/grunt-cumberbatch",
   "authors": [
     "Jeremy Stanley <github@azulus.com> (https://github.com/azulus)"
@@ -17,9 +17,10 @@
     "url": "https://github.com/azulus/cumberbatch.git"
   },
   "dependencies": {
-    "cumberbatch": "*",
-    "grunt": "*",
-    "kew": "*"
+    "cumberbatch": "0.2.0",
+    "grunt": "0.4.5",
+    "kew": "0.4.0",
+    "mkdirp": "0.5.0"
   },
   "devDependencies": {
     "grunt": "*",
@@ -30,12 +31,24 @@
   "bugs": {
     "url": "https://github.com/azulus/cumberbatch/issues"
   },
-  "readme": "ERROR: No README data found!",
-  "_id": "grunt-cumberbatch@0.0.29",
+  "_id": "grunt-cumberbatch@0.1.0",
   "dist": {
-    "shasum": "89db7f1f6f6b55ba83528fd89b57a4e5794589f6"
+    "shasum": "98e8754aa2799a6ba1c218afbe55dac2d403f542",
+    "tarball": "http://registry.npmjs.org/grunt-cumberbatch/-/grunt-cumberbatch-0.1.0.tgz"
   },
   "_from": "grunt-cumberbatch@",
-  "_resolved": "https://registry.npmjs.org/grunt-cumberbatch/-/grunt-cumberbatch-0.0.27.tgz",
-  "_shasum": "3ddd4485b9728616e27f6f2a8f7560c12088565b"
+  "_resolved": "https://registry.npmjs.org/grunt-cumberbatch/-/grunt-cumberbatch-0.1.0.tgz",
+  "_shasum": "3ddd4485b9728616e27f6f2a8f7560c12088565b",
+  "_npmVersion": "1.4.9",
+  "_npmUser": {
+    "name": "azulus",
+    "email": "npm@azulus.com"
+  },
+  "maintainers": [
+    {
+      "name": "azulus",
+      "email": "npm@azulus.com"
+    }
+  ],
+  "directories": {}
 }

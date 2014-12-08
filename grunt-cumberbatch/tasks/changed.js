@@ -2,6 +2,7 @@
 var cumberbatch = require('cumberbatch');
 var exec = require('child_process').exec;
 var fs = require('fs');
+var mkdirp = require('mkdirp');
 var path = require('path')
 var Q = require('kew');
 
@@ -12,9 +13,9 @@ module.exports = function(grunt) {
     var _hasher = null;
 
     /**
-     * Get a cumberbatch hasher instance
-     * @param {Cumberbatch.Hasher} config
-     */
+    * Get a cumberbatch hasher instance
+    * @param {Cumberbatch.Hasher} config
+    */
     var getHasher = function (config) {
         if (!_hasher) {
             _hasher = new cumberbatch.Hasher(null, config || {});
@@ -23,11 +24,11 @@ module.exports = function(grunt) {
     };
 
     /**
-     * Runs all tasks for a given task name
-     * @param  {string} prefix
-     * @param  {string} taskName
-     * @return {Object}
-     */
+    * Runs all tasks for a given task name
+    * @param  {string} prefix
+    * @param  {string} taskName
+    * @return {Object}
+    */
     var runAllTasks = function (prefix, taskName) {
         try {
             var tasks = [];
@@ -50,11 +51,11 @@ module.exports = function(grunt) {
     }
 
     /**
-     * Runs a specific task
-     * @param  {Object} options
-     * @param  {string} taskName
-     * @param  {string} targetName
-     */
+    * Runs a specific task
+    * @param  {Object} options
+    * @param  {string} taskName
+    * @param  {string} targetName
+    */
     var runTask = function (options, taskName, targetName) {
         var config = grunt.config(this.name) || {};
         if (config.options) config = config.options;
@@ -84,9 +85,9 @@ module.exports = function(grunt) {
 
         var inputGlobsGetter;
         if (taskConfig._getInputGlobs) {
-          inputGlobsGetter = taskConfig._getInputGlobs;
+            inputGlobsGetter = taskConfig._getInputGlobs;
         } else if (taskConfig.options && taskConfig.options._getInputGlobs) {
-          inputGlobsGetter = taskConfig.options._getInputGlobs;
+            inputGlobsGetter = taskConfig.options._getInputGlobs;
         }
 
         // copying files to src
@@ -100,7 +101,7 @@ module.exports = function(grunt) {
 
         var files, fileConfigs = [];
         if (typeof inputGlobsGetter !== 'undefined') {
-          taskConfig.src = inputGlobsGetter(taskConfig);
+            taskConfig.src = inputGlobsGetter(taskConfig);
         }
         files = grunt.task.normalizeMultiTaskFiles(taskConfig, targetName);
 
@@ -134,107 +135,108 @@ module.exports = function(grunt) {
             sources = sources.concat(files[i].src);
         }
         var newHashPromise = getHasher(config.hasher)
-            .calculateFileHashes(sources);
+        .calculateFileHashes(sources);
 
         Q.all([oldHashPromise, newHashPromise])
-            .then(function (response) {
-                // split the filenames into unchanged, changed, and deleted files
-                var oldHashes = response[0];
-                var newHashes = response[1];
-                var processedFiles = {};
-                var unchangedFiles = {};
-                var changedFiles = {};
-                var deletedFiles = {};
+        .then(function (response) {
+            // split the filenames into unchanged, changed, and deleted files
+            var oldHashes = response[0];
+            var newHashes = response[1];
+            var processedFiles = {};
+            var unchangedFiles = {};
+            var changedFiles = {};
+            var deletedFiles = {};
 
-                // concatenate the lists of old and new filenames and iterate
-                // over each checking for changes / deletion
-                var keys = Object.keys(oldHashes).concat(Object.keys(newHashes));
-                for (var i = 0; i < keys.length; i++) {
-                    var key = keys[i];
-                    if (processedFiles[key]) continue;
-                    processedFiles[key] = true;
+            // concatenate the lists of old and new filenames and iterate
+            // over each checking for changes / deletion
+            var keys = Object.keys(oldHashes).concat(Object.keys(newHashes));
+            for (var i = 0; i < keys.length; i++) {
+                var key = keys[i];
+                if (processedFiles[key]) continue;
+                processedFiles[key] = true;
 
-                    if (oldHashes[key] && !newHashes[key]) {
-                        deletedFiles[key] = oldHashes[key];
-                    } else if (newHashes[key] === oldHashes[key]) {
-                        unchangedFiles[key] = newHashes[key];
-                    } else {
-                        changedFiles[key] = newHashes[key];
-                    }
+                if (oldHashes[key] && !newHashes[key]) {
+                    deletedFiles[key] = oldHashes[key];
+                } else if (newHashes[key] === oldHashes[key]) {
+                    unchangedFiles[key] = newHashes[key];
+                } else {
+                    changedFiles[key] = newHashes[key];
                 }
+            }
 
-                return {
-                    deleted: deletedFiles,
-                    changed: changedFiles,
-                    unchanged: unchangedFiles,
-                    current: newHashes
+            return {
+                deleted: deletedFiles,
+                changed: changedFiles,
+                unchanged: unchangedFiles,
+                current: newHashes
+            }
+        })
+        .then(function (fileStatuses) {
+            // reset the task config to an empty array
+            taskConfig.files = [];
+
+            var taskFiles = [];
+            var numChangedFiles = Object.keys(fileStatuses.changed).length;
+            var numDeletedFiles = Object.keys(fileStatuses.deleted).length;
+
+            if (numDeletedFiles && taskConfig._onDelete) {
+                taskConfig._onDelete(Object.keys(fileStatuses.deleted));
+            }
+
+            if (options.fileSelection === 'all') {
+                if (numChangedFiles || numDeletedFiles) {
+                    // if we want to trigger a full rebuild, do this super
+                    // aggressively and rebuild if anything has been deleted
+                    // or changed
+                    taskConfig = originalConfig;
                 }
-            })
-            .then(function (fileStatuses) {
-                // reset the task config to an empty array
-                taskConfig.files = [];
-
-                var taskFiles = [];
-                var numChangedFiles = Object.keys(fileStatuses.changed).length;
-                var numDeletedFiles = Object.keys(fileStatuses.deleted).length;
-
-                if (numDeletedFiles && taskConfig._onDelete) {
-                  taskConfig._onDelete(Object.keys(fileStatuses.deleted));
-                }
-
-                if (options.fileSelection === 'all') {
-                    if (numChangedFiles || numDeletedFiles) {
-                        // if we want to trigger a full rebuild, do this super
-                        // aggressively and rebuild if anything has been deleted
-                        // or changed
-                        taskConfig = originalConfig;
-                    }
-                } else if (options.fileSelection === 'changed') {
-                    if (numChangedFiles) {
-                        // if we want to trigger incremental builds, loop through
-                        // each file mapping and reduce the src field to only
-                        // the files that show up in the changed map. If no files
-                        // from a src field are in the map, remove the map entirely
-                        for (var i = 0; i < files.length; i++) {
-                            var fileMap = grunt.util._.clone(files[i]);
-                            var fileSources = fileMap.src;
-                            var newSources = [];
-                            for (var j = 0; j < fileSources.length; j++) {
-                                if (fileStatuses.changed[fileSources[j]]) {
-                                    newSources.push(fileSources[j]);
-                                }
-                            }
-                            if (newSources.length) {
-                                fileMap.src = newSources;
-                                taskConfig.files.push(fileMap);
+            } else if (options.fileSelection === 'changed') {
+                if (numChangedFiles) {
+                    // if we want to trigger incremental builds, loop through
+                    // each file mapping and reduce the src field to only
+                    // the files that show up in the changed map. If no files
+                    // from a src field are in the map, remove the map entirely
+                    for (var i = 0; i < files.length; i++) {
+                        var fileMap = grunt.util._.clone(files[i]);
+                        var fileSources = fileMap.src;
+                        var newSources = [];
+                        for (var j = 0; j < fileSources.length; j++) {
+                            if (fileStatuses.changed[fileSources[j]]) {
+                                newSources.push(fileSources[j]);
                             }
                         }
+                        if (newSources.length) {
+                            fileMap.src = newSources;
+                            taskConfig.files.push(fileMap);
+                        }
                     }
+                }
 
-                    delete taskConfig.src;
-                    delete taskConfig.dest;
-                } else if (options.fileSelection === 'smart') {
-                  delete cleanupCache[cleanupId];
+                delete taskConfig.src;
+                delete taskConfig.dest;
+            } else if (options.fileSelection === 'smart') {
+                delete cleanupCache[cleanupId];
 
-                  var response = taskConfig._getChangeTasks(
-                      Object.keys(fileStatuses.changed), Object.keys(fileStatuses.deleted));
-                  var childTasks;
+                var response = taskConfig._getChangeTasks(
+                    Object.keys(fileStatuses.changed), Object.keys(fileStatuses.deleted));
+                    var childTasks;
 
-                  if (!response) {
-                    // no response provided, run the child task without a decorator
-                    childTasks = [fullTaskName];
+                    if (!response) {
+                        // no response provided, run the child task without a decorator
+                        childTasks = [fullTaskName];
 
-                  } else if (Array.isArray(response)) {
-                    // an array was returned, assume it's a list of tasks
-                    childTasks = [].concat(response);
+                    } else if (Array.isArray(response)) {
+                        // an array was returned, assume it's a list of tasks
+                        childTasks = [].concat(response);
 
-                  } else {
-                    // a single task was returned, create an array from it
-                    childTasks = [response];
-                  }
-                  grunt.task.run(childTasks);
-                  done(true);
-                  return;
+                    } else {
+                        // a single task was returned, create an array from it
+                        childTasks = [response];
+                    }
+                    //   console.log('RUNNING', childTasks);
+                    grunt.task.run(childTasks);
+                    done(true);
+                    return;
                 }
 
                 grunt.config.set([taskName, targetName], taskConfig);
@@ -253,68 +255,69 @@ module.exports = function(grunt) {
                 require('util').error(e.stack);
                 done(false);
             });
-    };
+        };
 
 
-    grunt.registerTask(
-        'changed-all',
-        'Runs the subtask if any input files have changed (with all inputs)',
-        function() {
-            return runTask.apply(this, [{'fileSelection': 'all'}]
+        grunt.registerTask(
+            'changed-all',
+            'Runs the subtask if any input files have changed (with all inputs)',
+            function() {
+                return runTask.apply(this, [{'fileSelection': 'all'}]
                 .concat(Array.prototype.slice.call(arguments, 0)))
-        }
-    );
-
-    grunt.registerTask(
-        'changed-only',
-        'Runs the subtask if any input files have changed (with all inputs)',
-        function() {
-            return runTask.apply(this, [{'fileSelection': 'changed'}]
-                .concat(Array.prototype.slice.call(arguments, 0)))
-        }
-    );
-
-    grunt.registerTask(
-        'changed-smart',
-        'Reruns the subtask with the specified prefix',
-        function() {
-            return runTask.apply(this, [{'fileSelection': 'smart'}]
-                .concat(Array.prototype.slice.call(arguments, 0)))
-        }
-    );
-
-    grunt.registerTask(
-        'changed-cleanup',
-        'Cleans up after the changed tasks have ran',
-        function(taskName, targetName, cleanupId) {
-            var done = this.async();
-            var cache = cleanupCache[cleanupId];
-            delete cleanupCache[cleanupId];
-
-            // reset the config
-            grunt.config.set([taskName, targetName], cache.config);
-
-            if (cache.required) {
-                grunt.task.requires(cache.required);
             }
+        );
 
-            exec('mkdir -p ' + cache.cacheDir, function(err) {
-                if (err) {
-                    console.error('Unable to create directory', cache.cacheDir);
-                    done(false);
+        grunt.registerTask(
+            'changed-only',
+            'Runs the subtask if any input files have changed (with all inputs)',
+            function() {
+                return runTask.apply(this, [{'fileSelection': 'changed'}]
+                .concat(Array.prototype.slice.call(arguments, 0)))
+            }
+        );
+
+        grunt.registerTask(
+            'changed-smart',
+            'Reruns the subtask with the specified prefix',
+            function() {
+                return runTask.apply(this, [{'fileSelection': 'smart'}]
+                .concat(Array.prototype.slice.call(arguments, 0)))
+            }
+        );
+
+        grunt.registerTask(
+            'changed-cleanup',
+            'Cleans up after the changed tasks have ran',
+            function(taskName, targetName, cleanupId) {
+                var done = this.async();
+                var cache = cleanupCache[cleanupId];
+                delete cleanupCache[cleanupId];
+
+                // reset the config
+                grunt.config.set([taskName, targetName], cache.config);
+
+                if (cache.required) {
+                    grunt.task.requires(cache.required);
                 }
 
-                for (var key in cache.fileHashes) {
-                    try {
-                        fs.writeFileSync(key, cache.fileHashes[key], {encoding:'utf8'});
-                    } catch (e) {
-                        console.error(e);
+                mkdirp(cache.cacheDir, function(err) {
+                    if (err) {
+                        console.error('Unable to create directory', cache.cacheDir);
+                        done(false);
+                    }
+
+                    for (var key in cache.fileHashes) {
+                        try {
+                            fs.writeFileSync(key, cache.fileHashes[key], {encoding:'utf8'});
+                        } catch (e) {
+                            console.error(e);
+                        }
                     }
 
                     done(true);
-                }
-            });
-        }
-    );
+                });
+            }
+        );
 
-};
+    };
+    

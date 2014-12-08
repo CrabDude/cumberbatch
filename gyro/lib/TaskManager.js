@@ -150,6 +150,7 @@ TaskManager.prototype._registerParent = function(taskName, options) {
 
     var task = this._tasks[taskName] = TaskFactory.getTask(taskName, {
         buildWhen: ['isDependency', 'dependencyBuilt'],
+        tags: options.tags,
         deps: deps
     }, this._options);
     task.setEmpty(true);

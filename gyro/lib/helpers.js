@@ -63,7 +63,7 @@ module.exports.initDefaultListeners = function() {
                 var taskData = stateData[taskName];
 
                 var taskOutput = taskName;
-                if (typeof taskData.lastRunMs !== 'undefined' && taskData.lastRunMs > 3000) {
+                if (typeof taskData.lastRunMs !== 'undefined' && taskData.lastRunMs >= 0) {
                     // if the tag has a duration over 3 seconds, add it to the output
                     taskOutput += ' (' + taskData.lastRunMs + 'ms!!)';
                 }
