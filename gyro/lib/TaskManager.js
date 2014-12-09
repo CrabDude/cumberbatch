@@ -151,7 +151,8 @@ TaskManager.prototype._registerParent = function(taskName, options) {
     var task = this._tasks[taskName] = TaskFactory.getTask(taskName, {
         buildWhen: ['isDependency', 'dependencyBuilt'],
         tags: options.tags,
-        deps: deps
+        deps: deps,
+        taskType: 'generic'
     }, this._options);
     task.setEmpty(true);
     task.setState(TaskState.INITIALIZING);
@@ -310,7 +311,7 @@ TaskManager.prototype._runNext = function() {
             // if 2 tasks need to run, don't run the dependency
             deps = this._tasks[taskName].getDependents();
             for (j = 0; j < deps.length; j++) {
-                var depState = this._tasks[deps[i]].getState();
+                var depState = this._tasks[deps[j]].getState();
                 if (depState === TaskState.IN_PROGRESS ||
                     depState === TaskState.IN_PROGRESS_MUST_RERUN) {
                     // if the task has dependents running, wait for them to finish

@@ -12,6 +12,14 @@ var Task = function(taskName, config, gyroConfig) {
     this._taskName = taskName;
 };
 
+Task.prototype.getWatchedGlobs = function() {
+    return [];
+};
+
+Task.prototype.run = function(callback) {
+    throw new Error('unable to run generic task:' + this._taskName);
+};
+
 Task.prototype.setDependents = function (deps) {
     this._dependents = deps;
 };

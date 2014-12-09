@@ -1,6 +1,7 @@
 var GruntPoolTask = require('./tasks/GruntPoolTask.js');
 var GruntTask = require('./tasks/GruntTask.js');
 var NodeTask = require('./tasks/NodeTask.js');
+var Task = require('./Task.js');
 
 var TaskFactory = function() {};
 
@@ -16,6 +17,10 @@ TaskFactory.prototype.getNodeTask = function(taskName, taskConfig, gyroConfig) {
     return new NodeTask(taskName, taskConfig, gyroConfig);
 };
 
+TaskFactory.prototype.getGenericTask = function(taskName, taskConfig, gyroConfig) {
+    return new Task(taskName, taskConfig, gyroConfig);
+};
+
 TaskFactory.prototype.getTask = function (taskName, taskConfig, gyroConfig) {
     switch (taskConfig.taskType) {
         case "grunt":
@@ -24,6 +29,8 @@ TaskFactory.prototype.getTask = function (taskName, taskConfig, gyroConfig) {
             return this.getGruntPoolTask(taskName, taskConfig, gyroConfig);
         case "node":
             return this.getNodeTask(taskName, taskConfig, gyroConfig);
+        case "generic":
+            return this.getGenericTask(taskName, taskConfig, gyroConfig);
         default:
             throw new Error('Unknown task type: ' + taskConfig.taskType);
     }
