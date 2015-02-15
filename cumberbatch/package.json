@@ -1,7 +1,7 @@
 {
   "name": "cumberbatch",
   "description": "crazy watcher stuff",
-  "version": "0.1.26",
+  "version": "0.1.27",
   "homepage": "https://github.com/azulus/cumberbatch",
   "authors": [
     "Jeremy Stanley <github@azulus.com> (https://github.com/azulus)"
@@ -23,7 +23,8 @@
     "xxhash": "0.2"
   },
   "devDependencies": {
-    "grunt": "*"
+    "grunt": "*",
+    "mkdirp": "*"
   },
   "scripts": {},
   "bugs": {

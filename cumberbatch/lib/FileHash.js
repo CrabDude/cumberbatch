@@ -7,6 +7,7 @@ module.exports.generate = function (filename, callback) {
 
   fs.createReadStream(filename)
       .on('data', function(data) {
+        // console.log('--', filename, data.length);
           hasher.update(data);
       })
       .on('end', function() {

@@ -59,19 +59,27 @@ GlobEmitter.prototype.on = function(globs, callback) {
 };
 
 GlobEmitter.prototype.trigger = function(globData) {
+  var shouldSetTimeout = false;
+
   if (!this._nextEvent) {
     this._nextEvent = {
-      globs: {}
+      globs: {},
+      startTime: Date.now()
     };
-  } else {
+    shouldSetTimeout = true;
+
+  } else if (Date.now() - this._nextEvent.startTime < this._options.debounceMs){
     clearTimeout(this._nextEvent.timeout);
+    shouldSetTimeout = true;
   }
 
   for (var key in globData) {
     this._nextEvent.globs[key] = globData[key];
   }
 
-  this._nextEvent.timeout = setTimeout(this._bound_emitEvent, this._options.debounceMs);
+  if (shouldSetTimeout) {
+    this._nextEvent.timeout = setTimeout(this._bound_emitEvent, this._options.debounceMs);
+  }
 };
 
 GlobEmitter.prototype._emitEvent = function() {

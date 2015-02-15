@@ -3,13 +3,20 @@ var FileHash = require('./FileHash');
 
 if (cluster.isWorker) {
   process.send('online');
+  var count = 0;
 
   process.on('message', function(msg) {
-    FileHash.generate(msg.filename, function (hash) {
+    if (msg.ping === true) {
       process.send({
-        filename: msg.filename,
-        hash: hash
-      })
-    });
+        pong: true
+      });
+    } else {
+      FileHash.generate(msg.filename, function (hash) {
+        process.send({
+          filename: msg.filename,
+          hash: hash
+        })
+      });
+    }
   })
 }

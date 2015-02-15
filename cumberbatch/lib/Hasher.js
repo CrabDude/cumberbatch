@@ -47,6 +47,7 @@ var Hasher = function (watcher, options) {
     }
 
     this._hasherProcesses = [];
+    this._hasherProcessesPendingFiles = [];
     if (cluster.isMaster && this._options.clusterProcesses > 0) {
       cluster.setupMaster({
         exec: path.join(__dirname, 'HasherWorker.js')
@@ -58,15 +59,28 @@ var Hasher = function (watcher, options) {
       console.log('SPAWNED', this._options.clusterProcesses, 'WORKERS');
 
       cluster.on('online', function(worker) {
+        var workerIdx = self._hasherProcesses.length;
         self._hasherProcesses.push(worker);
+        self._hasherProcessesPendingFiles[workerIdx] = 0;
 
         worker.on('message', function(msg) {
-          var callback = self._workerCallbacks[msg.filename];
-          if (typeof callback === 'undefined') return;
-          delete self._workerCallbacks[msg.filename];
+          if (msg.pong === true) {
+            // make another slot on the worker available
+            self._markWorkerProcessingFileComplete(workerIdx);
+          } else {
+            var callback = self._workerCallbacks[msg.filename];
+            if (typeof callback === 'undefined') return;
+            delete self._workerCallbacks[msg.filename];
 
-          callback(msg.hash);
+            callback(msg.hash);
+          }
         });
+
+        var sendPing = function() {
+          worker.send({ping: true});
+        };
+        setInterval(sendPing, 5000);
+        sendPing();
       });
     }
 
@@ -390,9 +404,33 @@ Hasher.prototype._calculateHash = function (filename, stat, priority) {
     return this._pathHashes[filename];
 };
 
+Hasher.prototype._markWorkerProcessingFileComplete = function(idx) {
+  if (this._hasherProcessesPendingFiles[idx] > 0) {
+    this._hasherProcessesPendingFiles[idx]--;
+  }
+};
+
+Hasher.prototype._markWorkerProcessingFile = function(idx) {
+  this._hasherProcessesPendingFiles[idx]++;
+};
+
+Hasher.prototype._workerIsAvailable = function (idx) {
+  return this._hasherProcessesPendingFiles[idx] < this._options.parallelHashers;
+};
+
 Hasher.prototype._selectWorker = function () {
-  var workerIdx = Math.floor(Math.random() * this._hasherProcesses.length);
-  return this._hasherProcesses[workerIdx];
+  if (this._hasherProcesses.length === 0) {
+    return undefined;
+  }
+
+  for (var i = 0; i < 5; i++) {
+    var workerIdx = Math.floor(Math.random() * this._hasherProcesses.length);
+    if (this._workerIsAvailable(workerIdx)) {
+      return workerIdx;
+    }
+  }
+
+  return undefined;
 };
 
 Hasher.prototype._getHashForFile = function (filename, priority) {
@@ -405,17 +443,43 @@ Hasher.prototype._getHashForFile = function (filename, priority) {
           if (self._options.debug) {
               console.log('calculating hash for', filename, 'at priority', priority);
           }
+          var workerIdx = self._selectWorker();
+          var workerTimeout;
+          var processed = false;
 
           var hasherCallback = function(hash) {
+            if (processed === true) {
+              return;
+            }
+            processed = true;
+
+            if (workerTimeout !== undefined) {
+              // worker finished before the timeout, mark this complete
+              self._markWorkerProcessingFileComplete(workerIdx);
+              clearTimeout(workerTimeout);
+              workerTimeout = undefined;
+            }
+
             delete self._enqueuedFiles[filename];
             defer.resolve(hash);
             callback();
           };
 
-          if (self._hasherProcesses.length) {
+          var onTimeout = function() {
+            clearTimeout(workerTimeout);
+            workerTimeout = undefined;
+            FileHash.generate(filename, hasherCallback);
+          };
+
+          if (workerIdx !== undefined) {
+            self._markWorkerProcessingFile(workerIdx);
+            var worker = self._hasherProcesses[workerIdx];
             self._workerCallbacks[filename] = hasherCallback;
-            self._selectWorker().send({filename: filename});
+            worker.send({filename: filename});
+
+            workerTimeout = setTimeout(onTimeout, 5000);
           } else {
+            // console.log('HANDLING', filename);
             FileHash.generate(filename, hasherCallback);
           }
 
