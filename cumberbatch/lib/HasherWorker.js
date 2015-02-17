@@ -3,7 +3,6 @@ var FileHash = require('./FileHash');
 
 if (cluster.isWorker) {
   process.send('online');
-  var count = 0;
 
   process.on('message', function(msg) {
     if (msg.ping === true) {

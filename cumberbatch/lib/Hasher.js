@@ -479,7 +479,6 @@ Hasher.prototype._getHashForFile = function (filename, priority) {
 
             workerTimeout = setTimeout(onTimeout, 5000);
           } else {
-            // console.log('HANDLING', filename);
             FileHash.generate(filename, hasherCallback);
           }
 
