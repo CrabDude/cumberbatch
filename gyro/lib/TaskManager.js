@@ -135,6 +135,9 @@ TaskManager.prototype._registerParent = function(taskName, options) {
     for (var i = 0; i < configKeys.length; i++) {
         var childOptions = _.clone(options);
         delete childOptions.isParent;
+        if (options.collapseChildren) {
+            childOptions.groupAs = taskName;
+        }
         var targetName = configKeys[i];
         if (!/^_|^options$/.test(targetName) && typeof config[targetName] !==
             'function') {
@@ -398,6 +401,7 @@ TaskManager.prototype.getTaskStates = function() {
         tasksData[taskName] = {
             dependencies: task.getDependencies(),
             errorData: task.getError(),
+            groupAs: task.getConfig().groupAs,
             lastRunMs: task.getLastDuration(),
             state: task.getState(),
             tags: task.getTags()
@@ -530,7 +534,7 @@ TaskManager.prototype._detachWatcher = function() {
  * Sets up default event listeners for rendering output
  */
 TaskManager.prototype.initDefaultListeners = function() {
-    helpers.initDefaultListeners.call(this);
+    helpers.initDefaultListeners.apply(this, arguments);
 };
 
 module.exports = TaskManager;
