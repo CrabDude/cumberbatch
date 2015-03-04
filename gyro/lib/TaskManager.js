@@ -371,19 +371,19 @@ TaskManager.prototype._runTask = function(taskName) {
     var startTime = Date.now();
     var self = this;
 
-    /* Some tasks spawn their own processes. Use config.processMultiplier
+    /* Some tasks spawn their own processes. Use config.processesUsed
         to represent the number of processes a task might spawn. */
     var taskConfig = task.getConfig() || {};
-    var processMultiplier = parseInt(taskConfig['processMultiplier'] || 1);
+    var processesUsed = parseInt(taskConfig['processesUsed'] || 1);
 
     /* This may exceed maxProcesses temporarily.
        Allow this to avoid deadlock
-       (where processMultiplier > maxProcesses) */
-    this._runningProcesses += processMultiplier;
+       (where processesUsed > maxProcesses) */
+    this._runningProcesses += processesUsed;
 
     task.run(function (err) {
         task.setLastDuration(Date.now() - startTime);
-        self._runningProcesses -= processMultiplier;
+        self._runningProcesses -= processesUsed;
         self._trigger(taskName, !!err ? TaskAction.FAILED : TaskAction.SUCCEEDED);
     });
 };
