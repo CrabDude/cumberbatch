@@ -328,7 +328,9 @@ TaskManager.prototype._runNext = function() {
     }
 
     if (typeof this._maxProcesses !== 'undefined') {
-        var runnersAvailable = this._maxProcesses - this._runningProcesses;
+        /* Certain tasks with a process multiplier may cause runningProcesses to exceed maxProcesses
+            temporarily. This must be allowed to avoid deadlock. */
+        var runnersAvailable = Math.max(this._maxProcesses - this._runningProcesses, 0);
         if (tasksToRun.length > runnersAvailable) {
             // if we have limited task runners available, prioritize by number of
             // downstream tasks
@@ -368,11 +370,20 @@ TaskManager.prototype._runTask = function(taskName) {
     // actually spawn the process
     var startTime = Date.now();
     var self = this;
-    this._runningProcesses++;
+
+    /* Some tasks spawn their own processes. Use config.processesUsed
+        to represent the number of processes a task might spawn. */
+    var taskConfig = task.getConfig() || {};
+    var processesUsed = parseInt(taskConfig['processesUsed'] || 1);
+
+    /* This may exceed maxProcesses temporarily.
+       Allow this to avoid deadlock
+       (where processesUsed > maxProcesses) */
+    this._runningProcesses += processesUsed;
 
     task.run(function (err) {
         task.setLastDuration(Date.now() - startTime);
-        self._runningProcesses--;
+        self._runningProcesses -= processesUsed;
         self._trigger(taskName, !!err ? TaskAction.FAILED : TaskAction.SUCCEEDED);
     });
 };
