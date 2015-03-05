@@ -83,16 +83,14 @@ module.exports.initDefaultListeners = function(anchorFn) {
             // for each task, create the renderable output and add to all appropriate tag buckets
             for (i = 0; i < taskGroupings.length; i++) {
                 var taskGroupData = taskGroupings[i];
-                var taskState, taskLastRunMs, taskTags;
+                var taskState = undefined, taskLastRunMs = undefined, taskTags = undefined;
 
                 for (var j = 0; j < taskGroupData.data.length; j++) {
                     var taskData = taskGroupData.data[j];
 
                     // set state
                     if (taskState === undefined ||
-                            taskState !== TaskState.IN_PROGRESS ||
-                            taskState !== TaskState.IN_PROGRESS_MUST_RERUN ||
-                            taskState !== TaskState.FAILED) {
+                            [TaskState.IN_PROGRESS, TaskState.IN_PROGRESS_MUST_RERUN, TaskState.FAILED].indexOf(taskState) === -1) {
                         taskState = taskData.state;
                     }
 
@@ -159,7 +157,7 @@ module.exports.initDefaultListeners = function(anchorFn) {
 
             var output = '';
             for (tag in tagOutputs) {
-                var prefix = "---------" + tag.toUpperCase() + "---------";
+                var prefix = tag.toUpperCase() + ":";
                 switch(tagStates[tag]) {
                     case TaskState.SUCCEEDED:
                         prefix = prefix.greenBG.black.bold;
@@ -171,7 +169,7 @@ module.exports.initDefaultListeners = function(anchorFn) {
                         prefix = prefix.yellowBG.black.bold;
                 }
 
-                output += prefix + "\n".blackBG + tagOutputs[tag].join(' ') + "\n\n".blackBG;
+	output += prefix + " ".blackBG + tagOutputs[tag].join(' ') + " ".blackBG  + "\n";
             }
 
             if (output !== lastOutput) {
