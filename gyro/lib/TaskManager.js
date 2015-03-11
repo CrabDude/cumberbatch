@@ -91,12 +91,47 @@ TaskManager.prototype.register = function(taskName, options, force) {
 };
 
 /**
+ * Recursively calculates priorities for all tasks
+ *
+ */
+TaskManager.prototype._calculatePriorities = function() {
+    var self = this;
+    var priorities = {};
+    var tasksPending;
+    do {
+        tasksPending = [];
+        _.forEach(this._tasks, function(task, taskName) {
+            var currentPriority = task.getPriority();
+            var deps = task.getDependents();
+            for (var i = 0; i < deps.length; i++) {
+                var dep = deps[i];
+
+                if (priorities[dep] === undefined) {
+                    // wait for the dependent task to set its own priority
+                    tasksPending.push(dep);
+                    return;
+                }
+
+                if (priorities[dep] > currentPriority) {
+                    // dependent priority is higher, boost priority
+                    currentPriority = priorities[dep];
+                }
+            }
+
+            task.setPriority(currentPriority);
+            priorities[taskName] = currentPriority;
+        });
+    } while (tasksPending.length);
+};
+
+/**
  * Starts the task manager by waiting for the watcher or hasher to be ready
  * and immediately running the next pending task.
  */
 TaskManager.prototype.start = function() {
     this._buildDependencyMap();
     this._buildDependentMap();
+    this._calculatePriorities();
 
     var started = false;
     var self = this;
@@ -253,8 +288,18 @@ TaskManager.prototype._hasPendingDeps = function (taskName) {
 };
 
 TaskManager.prototype._sortTasksByDependencies = function(a, b) {
-    var aDeps = this._tasks[a].getDependents() || [];
-    var bDeps = this._tasks[b].getDependents() || [];
+    var aTask = this._tasks[a];
+    var bTask = this._tasks[b];
+
+    var aPriority = aTask.getPriority();
+    var bPriority = bTask.getPriority();
+
+    if (aPriority !== bPriority) {
+        return bPriority - aPriority;
+    }
+
+    var aDeps = aTask || [];
+    var bDeps = bTask || [];
     return bDeps.length - aDeps.length;
 };
 

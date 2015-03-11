@@ -10,6 +10,7 @@ var Task = function(taskName, config, gyroConfig) {
     this._process = undefined;
     this._state = undefined;
     this._taskName = taskName;
+    this._priority = config.priority || 0;
 };
 
 Task.prototype.getWatchedGlobs = function() {
@@ -19,6 +20,14 @@ Task.prototype.getWatchedGlobs = function() {
 Task.prototype.run = function(callback) {
     throw new Error('unable to run generic task:' + this._taskName);
 };
+
+Task.prototype.setPriority = function (priority) {
+    this._priority = priority;
+}
+
+Task.prototype.getPriority = function () {
+    return this._priority;
+}
 
 Task.prototype.setDependents = function (deps) {
     this._dependents = deps;
