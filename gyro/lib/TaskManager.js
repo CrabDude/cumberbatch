@@ -43,6 +43,8 @@ util.inherits(TaskManager, events.EventEmitter);
  * @param  {boolean} force force adding this task immediately
  */
 TaskManager.prototype.register = function(taskName, options, force) {
+    var i;
+
     if (!options.taskType) options.taskType = 'grunt';
 
     if (this._targets && this._targets.indexOf(taskName) === -1 && !force) {
@@ -61,7 +63,7 @@ TaskManager.prototype.register = function(taskName, options, force) {
     var task = this._tasks[taskName] = TaskFactory.getTask(taskName, options || {}, this._options);
     task.setState(TaskState.INITIALIZING);
     var deps = task.getConfig().deps || [];
-    for (var i = 0; i < deps.length; i++) {
+    for (i = 0; i < deps.length; i++) {
         var dep = deps[i];
         var config = this._delayedRegistrations[dep];
 
@@ -81,11 +83,34 @@ TaskManager.prototype.register = function(taskName, options, force) {
         var self = this;
 
         _.forEach(globData, function(data) {
-            var callback = self._trigger.bind(self, taskName,
+            var watcherCallback = self._trigger.bind(self, taskName,
                 TaskAction.CHANGED);
+            var hasherCallback = watcherCallback;
+
+            if (self._options.verboseTasks && Array.isArray(self._options.verboseTasks)) {
+                for (i = 0; i < self._options.verboseTasks.length; i++) {
+                    var verboseTask = self._options.verboseTasks[i];
+                    if (taskName.indexOf(verboseTask) !== -1) {
+
+                        console.log('Task: ' + taskName, ' is listening to: ', data.src);
+                        
+                        var originalWatcherCallback = watcherCallback;
+
+                        watcherCallback = function(){
+                            console.log('Watcher of: ', taskName, ' called with: ', arguments[0]);
+                        };
+
+                        hasherCallback = function() {
+                            console.log('Hasher of: ', taskName, ' called with: ', arguments[0]);
+                            return originalWatcherCallback.apply(this, arguments);
+                        };
+                        break;
+                    }
+                }
+            }
             self._watcherListeners.push(self._options.watcher.on(
-                data.src, callback));
-            self._options.hasher.on(data.src, callback);
+                data.src, watcherCallback));
+            self._options.hasher.on(data.src, hasherCallback);
         });
     }
 };
@@ -137,20 +162,32 @@ TaskManager.prototype.start = function() {
     var self = this;
 
     var onReady = function() {
-        if (self._options.verbose) {
-            console.log('watcher started');
-        }
-
         if (!started) {
             self._runNext();
             started = true;
         }
     };
 
-    this._options.watcher.onReady(onReady);
+    var onWatcherReady = function() {
+        if (self._options.verbose) {
+            console.log('Watcher started');
+        }
+        onReady();
+    };
 
-    this._options.hasher.onReady(onReady);
-    this._options.hasher.onReady(this._detachWatcher.bind(this));
+    var onHasherReady = function() {
+        if (self._options.verbose) {
+            console.log('Hasher started');
+        }
+        onReady();
+    };
+
+    this._options.watcher.onReady(onWatcherReady);
+    this._options.hasher.onReady(onHasherReady);
+
+    if (!Array.isArray(self._options.verboseTasks)) {
+        this._options.hasher.onReady(this._detachWatcher.bind(this));
+    }
 };
 
 /**
