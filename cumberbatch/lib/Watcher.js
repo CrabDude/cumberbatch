@@ -1,4 +1,3 @@
-var chokidar = require('./chokidar');
 var fs = require('fs');
 var minimatch = require('minimatch');
 var path = require('path');
@@ -16,6 +15,10 @@ var Watcher = function(baseDir, options) {
         this._options.debug = false;
     }
 
+    if (typeof this._options.usePolling !== 'boolean') {
+        this._options.usePolling = false;
+    }
+
     this._runners = 0;
     this._queue = [];
     this._listeners = {};
@@ -26,9 +29,29 @@ var Watcher = function(baseDir, options) {
     this._pathsAreSorted = false;
 
     this._isReady = false;
-    this._lastUpdate = Date.now();
-    this._watchDir(baseDir, true);
 
+    // Temporarily support old polling mechanism
+    // TODO: Remove support for polling once transition is finished.
+    if (this._options.usePolling) {
+      // Use our modified chokidar version.
+      // Which is based on a now older chokidar version (0.8)
+      this._chokidar = require('./chokidar');
+      if (this._options.debug) {
+        console.log('Using Polling');
+      }
+    } else {
+      // Use the new version of chokidar which
+      // has fixed some bugs related to polling
+      // and that has improved support for non-polling.
+      this._chokidar = require('chokidar');
+      if (this._options.debug) {
+        console.log('Not using Polling');
+      }
+    }
+
+    this._lastUpdate = Date.now();
+
+    this._watchDir(baseDir, true);
     this._onReady = Q.defer();
 };
 util.inherits(Watcher, GlobEmitter);
@@ -136,20 +159,26 @@ Watcher.prototype._watchDir = function (dir, isRoot) {
     if (dir in self._dirs) return self._dirs[dir];
 
     if (isRoot) {
-        var hotInterval = this._options.hotFileInterval || 100;
-        var warmInterval = this._options.warmFileInterval || 2000;
-        var coldInterval = this._options.coldFileInterval || 4000;
-
-        var maxHotFiles = this._options.maxHotFiles || 100;
-        var maxWarmFiles = this._options.maxWarmFiles || 500;
-
-        var hotFileFilter = this._options.hotFileFilter;
 
         var options = {
           ignoreInitial: false,
           persistent: true,
-          interval: coldInterval
+          alwaysStat: true,
+          usePolling: !!this._options.usePolling
         };
+
+        if (this._options.usePolling) {
+          var hotInterval = this._options.hotFileInterval || 100;
+          var warmInterval = this._options.warmFileInterval || 2000;
+          var coldInterval = this._options.coldFileInterval || 4000;
+
+          var maxHotFiles = this._options.maxHotFiles || 100;
+          var maxWarmFiles = this._options.maxWarmFiles || 500;
+
+          var hotFileFilter = this._options.hotFileFilter;
+
+          options.interval = coldInterval;
+        }
 
         if (self._options.ignored) {
           options.ignored = self._options.ignored;
@@ -159,46 +188,50 @@ Watcher.prototype._watchDir = function (dir, isRoot) {
           options.binaryInterval = self._options.binaryInterval;
         }
 
-        var fsWatcher = chokidar.watch(dir, options);
+        var fsWatcher = this._chokidar.watch(dir, options);
 
-        var fileLru = self._fileLru = new WarmingLRU({
-          maxHot: maxHotFiles,
-          maxWarm: maxWarmFiles
-        });
+        if (this._options.usePolling) {
+          var fileLru = self._fileLru = new WarmingLRU({
+            maxHot: maxHotFiles,
+            maxWarm: maxWarmFiles
+          });
 
-        fileLru.on('filesChanged', function(files) {
-          for(var filename in files) {
-            var heat = files[filename];
-            var interval;
-            switch (heat) {
-              case 'hot':
-                interval = hotInterval;
-                break;
-              case 'warm':
-                interval = warmInterval;
-                break;
-              default:
-                interval = coldInterval;
-                break;
+          fileLru.on('filesChanged', function(files) {
+            for(var filename in files) {
+              var heat = files[filename];
+              var interval;
+              switch (heat) {
+                case 'hot':
+                  interval = hotInterval;
+                  break;
+                case 'warm':
+                  interval = warmInterval;
+                  break;
+                default:
+                  interval = coldInterval;
+                  break;
+              }
+              fsWatcher.setInterval(filename, interval);
             }
-            fsWatcher.setInterval(filename, interval);
-          }
-        });
+          });
+        }
 
         var isReady = false;
         var allTimes = [];
 
         // with fs.watch we only need to attach a watcher to the root
         fsWatcher.on('all', function (ev, filename, stat) {
-            if (hotFileFilter && hotFileFilter(filename)) {
-              if (stat) {
-                if (!isReady) {
-                  allTimes.push({'filename':filename, 'mtime':stat.mtime.getTime()/1000});
+            if (self._options.usePolling) {
+              if (hotFileFilter && hotFileFilter(filename)) {
+                if (stat) {
+                  if (!isReady) {
+                    allTimes.push({'filename':filename, 'mtime':stat.mtime.getTime()/1000});
+                  } else {
+                    fileLru.set(filename, stat.mtime);
+                  }
                 } else {
-                  fileLru.set(filename, stat.mtime);
+                  fileLru.del(filename);
                 }
-              } else {
-                fileLru.del(filename);
               }
             }
 
@@ -206,18 +239,20 @@ Watcher.prototype._watchDir = function (dir, isRoot) {
         });
 
         fsWatcher.on('ready', function () {
-          allTimes.sort(function (a, b) {
-              return b.mtime - a.mtime;
-          });
-          var end = Math.min(allTimes.length - 1, maxHotFiles + maxWarmFiles - 1);
-          for (var i = end; i >= 0; i--) {
-              var time = allTimes[i];
-              fileLru.set(time.filename, time.mtime);
-              if (i < maxHotFiles) {
+          if (self._options.usePolling) {
+            allTimes.sort(function (a, b) {
+                return b.mtime - a.mtime;
+            });
+            var end = Math.min(allTimes.length - 1, maxHotFiles + maxWarmFiles - 1);
+            for (var i = end; i >= 0; i--) {
+                var time = allTimes[i];
                 fileLru.set(time.filename, time.mtime);
-              }
+                if (i < maxHotFiles) {
+                  fileLru.set(time.filename, time.mtime);
+                }
+            }
+            allTimes = undefined;
           }
-          allTimes = undefined;
           isReady = true;
 
           if (!self._isReady) {
