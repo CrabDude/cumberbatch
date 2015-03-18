@@ -3,11 +3,36 @@ var colors = require('colors');
 
 var TaskState = require('./TaskState');
 
-module.exports.initDefaultListeners = function(anchorFn) {
+module.exports.initDefaultListeners = function(options) {
     var taskManager = this;
-    if (anchorFn === undefined) {
-        anchorFn = console.log.bind(console);
+    var startTime = new Date().getTime();
+    var hasCompleted = false;
+    var humanReadableRunTimes = [];
+    var anchorFn;
+
+    if (!options) {
+        options = {};
     }
+
+    if (options.anchorFn === undefined) {
+        anchorFn = console.log.bind(console);
+    } else {
+        anchorFn = options.anchorFn;
+    }
+
+    var getHumanReadableTime = function(timeInMs) {
+        var oneSecond = 1000;
+        var sixtySeconds = 60 * oneSecond;
+        if (timeInMs > sixtySeconds) {
+            var seconds = Math.floor((timeInMs % sixtySeconds) / 1000);
+            var minutes = Math.floor(timeInMs / sixtySeconds);
+            return minutes + 'm ' + seconds + 's';
+        } else if (timeInMs > oneSecond) {
+            return ((timeInMs / oneSecond).toFixed(1)) + 's';
+        } else {
+            return timeInMs + 'ms';
+        }
+    };
 
     var renderTaskErrors = function() {
         var stateData = taskManager.getTaskStates();
@@ -47,8 +72,11 @@ module.exports.initDefaultListeners = function(anchorFn) {
             var tagStates = {};
             var tag;
             var hasErrors = false;
-            var hasInProgress = false;
             var i;
+            var numTasksPending = 0;
+            var numTasksProcessing = 0;
+            var numTasksFailed = 0;
+            var numTasksSucceded = 0;
 
             // sort tasks by number of dependencies, this is an approximation of order ran
             taskNames.sort(function (a, b) {
@@ -109,27 +137,37 @@ module.exports.initDefaultListeners = function(anchorFn) {
                 }
 
                 var taskOutput = taskGroupData.name;
-                if (typeof taskLastRunMs !== 'undefined' && taskLastRunMs >= 0) {
-                    // if the tag has a duration over 3 seconds, add it to the output
-                    taskOutput += ' (' + taskLastRunMs + 'ms!!)';
+                // Check whether to show time elapsed per task
+                // As in slow machines, like 4 cores, it always shows this and looks cluttered,
+                // we should probably instead report it to some api endpoint and collect metrics.
+                if (options.showTimeElapsedPerTask) {
+                    if (typeof taskLastRunMs !== 'undefined' && taskLastRunMs >= 0) {
+                        // if the tag has a duration over 3 seconds, add it to the output
+                        taskOutput += ' (' + taskLastRunMs + 'ms!!)';
+                    }
                 }
+
+                taskOutput = '[ ' + taskOutput.split(':').join(' : ') + ' ]';
 
                 // format the task output string based on state
                 switch (taskState) {
                     case TaskState.INITIALIZING:
                     case TaskState.PENDING:
-                        taskOutput = taskOutput.grey;
+                        taskOutput = taskOutput.grey.blackBG;
+                        numTasksPending++;
                         break;
                     case TaskState.IN_PROGRESS:
                     case TaskState.IN_PROGRESS_MUST_RERUN:
-                        taskOutput = taskOutput.blueBG.bold.white;
-                        hasInProgress = true;
+                        taskOutput = taskOutput.bold.blue.blackBG;
+                        numTasksProcessing++;
                         break;
                     case TaskState.FAILED:
-                        taskOutput = taskOutput.redBG.bold.black;
+                        taskOutput = taskOutput.bold.red.blackBG;
+                        numTasksFailed++;
                         break;
                     case TaskState.SUCCEEDED:
-                        taskOutput = taskOutput.greenBG.bold.black;
+                        taskOutput = taskOutput.bold.green.blackBG;
+                        numTasksSucceded++;
                         break;
                 }
 
@@ -155,21 +193,74 @@ module.exports.initDefaultListeners = function(anchorFn) {
                 }
             }
 
+            // Intermittently the state will be nothing in progress and a couple pending for an instant
+            // thus check also pending to prevent multiple repeated final error outputs.
+            newHasCompleted = numTasksProcessing === 0 && numTasksPending === 0;
+
+            var weHaveJustCompletedARun = false;
+            if (hasCompleted && !newHasCompleted) {
+                // We've just started again!
+                startTime = new Date().getTime();
+            } else if (!hasCompleted && newHasCompleted) {
+                // We've finished!
+                var elapsedTime = new Date().getTime() - startTime;
+                humanReadableRunTimes.push(getHumanReadableTime(elapsedTime));
+                weHaveJustCompletedARun = true;
+            }
+
+            hasCompleted = newHasCompleted;
+
             var output = '';
+
+            // Progress bar
+            var completionRatio = numTasksSucceded / ((numTasksSucceded + numTasksProcessing + numTasksPending) || 1);
+            var length = 80;
+            var completionUnits = Math.floor(length * completionRatio);
+            var progresBar = Array(completionUnits + 1).join("+");
+            var pendingBar = Array(length - completionUnits + 1).join("-");
+            var line;
+            if (hasCompleted) {
+                line = (progresBar.green + pendingBar.green + '\n\n').bold;
+            } else {
+                line = (progresBar.cyan + pendingBar.blue + '\n\n').bold;
+            }
+            output += line;
+
             for (tag in tagOutputs) {
-                var prefix = tag.toUpperCase() + ":";
+                var prefix = tag.toUpperCase() + " Build Tasks: ";
                 switch(tagStates[tag]) {
                     case TaskState.SUCCEEDED:
-                        prefix = prefix.greenBG.black.bold;
+                        prefix = prefix.blackBG.bold.green;
                         break;
                     case TaskState.FAILED:
-                        prefix = prefix.redBG.black.bold;
+                        prefix = prefix.blackBG.bold.red;
                         break;
                     default:
-                        prefix = prefix.yellowBG.black.bold;
+                        prefix = prefix.blackBG.bold.blue;
                 }
 
-	output += prefix + " ".blackBG + tagOutputs[tag].join(' ') + " ".blackBG  + "\n";
+	           output += prefix + "\n".blackBG + tagOutputs[tag].join(' ') + " ".blackBG  + "\n\n";
+            }
+
+            var status = '';
+            if (numTasksFailed > 0) {
+                status = ('FAILED (' + numTasksFailed + ' tasks failed)').bold.red;
+            } else if (numTasksProcessing > 0) {
+                status = ('IN PROCESS (' + numTasksProcessing + ' tasks processing, ' + numTasksPending + ' tasks pending)').bold.blue;
+            } else if (numTasksPending > 0) {
+                status = ('INCOMPLETE (' + numTasksPending + ' tasks pending)').bold.blue;
+            } else {
+                status = ('SUCCESSFULLY COMPLETE (' + numTasksSucceded + ' tasks done)').bold.green;
+            }
+            output += 'BUILD STATUS: '.bold.white.blackBG + status + '\n';
+
+            if (humanReadableRunTimes.length > 0) {
+                output += ('RUN TIMES: ' + humanReadableRunTimes.join(', ')).bold.white.blackBG  + '\n';
+            }
+
+            if (!newHasCompleted) {
+                var elapsedTime = new Date().getTime() - startTime;
+                output += ('CURRENT BUILD ELAPSED TIME: ' + getHumanReadableTime(elapsedTime)).bold.white.blackBG  + '\n';
             }
 
             if (output !== lastOutput) {
@@ -177,7 +268,11 @@ module.exports.initDefaultListeners = function(anchorFn) {
                 lastOutput = output;
             }
 
-            if (hasErrors === true && hasInProgress === false) {
+            if (weHaveJustCompletedARun) {
+                console.log("\nDone, all tasks finished running.\n".green.bold);
+            }
+
+            if (hasErrors === true && hasCompleted) {
                 renderTaskErrors();
             }
         };
@@ -187,7 +282,27 @@ module.exports.initDefaultListeners = function(anchorFn) {
         'trailing': true
     });
 
+    var renderTaskStateChange = function(taskName, oldState, newState) {
+        // TODO: Maybe move this out?
+        var taskStateDescriptions = ['NONE', 'INITIALIZING', 'PENDING', 'IN_PROGRESS', 
+            'IN_PROGRESS_MUST_RERUN', 'FAILED', 'SUCCEEDED'];
+
+        if (oldState < taskStateDescriptions.length && newState < taskStateDescriptions.length) {
+            var message = '( [' + taskName.split(':').join(' : ') + ' ]  ' + taskStateDescriptions[oldState] +
+                ' -> ' + taskStateDescriptions[newState] + ')';
+            var line = '\n================================================================================\n';
+
+            if (newState == TaskState.SUCCEEDED) {
+                console.log(('\n' + message).toLowerCase().grey);
+                console.log(line.bold.green);
+            } else {
+                console.log((message + '\n').toLowerCase().grey);
+            }
+        }
+    };
+
     this.on('taskStateChange', function (taskName, oldState, newState) {
         renderTaskStates();
+        renderTaskStateChange(taskName, oldState, newState);
     });
 };
