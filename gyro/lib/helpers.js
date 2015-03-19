@@ -7,6 +7,8 @@ module.exports.initDefaultListeners = function(options) {
     var taskManager = this;
     var startTime = new Date().getTime();
     var hasCompleted = false;
+    var tasksRunTimesInCurrentBuild = [];
+    var runTimes = [];
     var humanReadableRunTimes = [];
     var anchorFn;
 
@@ -147,26 +149,26 @@ module.exports.initDefaultListeners = function(options) {
                     }
                 }
 
-                taskOutput = '[ ' + taskOutput.split(':').join(' : ') + ' ]';
+                taskOutput = taskOutput.split(':').join(' ');
 
                 // format the task output string based on state
                 switch (taskState) {
                     case TaskState.INITIALIZING:
                     case TaskState.PENDING:
-                        taskOutput = taskOutput.grey.blackBG;
+                        taskOutput = taskOutput.grey;
                         numTasksPending++;
                         break;
                     case TaskState.IN_PROGRESS:
                     case TaskState.IN_PROGRESS_MUST_RERUN:
-                        taskOutput = taskOutput.bold.blue.blackBG;
+                        taskOutput = taskOutput.bold.blue;
                         numTasksProcessing++;
                         break;
                     case TaskState.FAILED:
-                        taskOutput = taskOutput.bold.red.blackBG;
+                        taskOutput = taskOutput.bold.red;
                         numTasksFailed++;
                         break;
                     case TaskState.SUCCEEDED:
-                        taskOutput = taskOutput.bold.green.blackBG;
+                        taskOutput = taskOutput.bold.green;
                         numTasksSucceded++;
                         break;
                 }
@@ -204,6 +206,7 @@ module.exports.initDefaultListeners = function(options) {
             } else if (!hasCompleted && newHasCompleted) {
                 // We've finished!
                 var elapsedTime = new Date().getTime() - startTime;
+                runTimes.push(elapsedTime);
                 humanReadableRunTimes.push(getHumanReadableTime(elapsedTime));
                 weHaveJustCompletedARun = true;
             }
@@ -220,26 +223,26 @@ module.exports.initDefaultListeners = function(options) {
             var pendingBar = Array(length - completionUnits + 1).join("-");
             var line;
             if (hasCompleted) {
-                line = (progresBar.green + pendingBar.green + '\n\n').bold;
+                line = (progresBar.green + pendingBar.green + '\n').bold;
             } else {
-                line = (progresBar.cyan + pendingBar.blue + '\n\n').bold;
+                line = (progresBar.cyan + pendingBar.blue + '\n').bold;
             }
             output += line;
 
             for (tag in tagOutputs) {
-                var prefix = tag.toUpperCase() + " Build Tasks: ";
+                var prefix = tag.toUpperCase() + " TASKS: ";
                 switch(tagStates[tag]) {
                     case TaskState.SUCCEEDED:
-                        prefix = prefix.blackBG.bold.green;
+                        prefix = prefix.bold.green;
                         break;
                     case TaskState.FAILED:
-                        prefix = prefix.blackBG.bold.red;
+                        prefix = prefix.bold.red;
                         break;
                     default:
-                        prefix = prefix.blackBG.bold.blue;
+                        prefix = prefix.bold.blue;
                 }
 
-	           output += prefix + "\n".blackBG + tagOutputs[tag].join(' ') + " ".blackBG  + "\n\n";
+	           output += prefix + tagOutputs[tag].join(', ') + "\n";
             }
 
             var status = '';
@@ -252,15 +255,44 @@ module.exports.initDefaultListeners = function(options) {
             } else {
                 status = ('SUCCESSFULLY COMPLETE (' + numTasksSucceded + ' tasks done)').bold.green;
             }
-            output += 'BUILD STATUS: '.bold.white.blackBG + status + '\n';
-
-            if (humanReadableRunTimes.length > 0) {
-                output += ('RUN TIMES: ' + humanReadableRunTimes.join(', ')).bold.white.blackBG  + '\n';
-            }
-
+            var lastRunTime;
             if (!newHasCompleted) {
                 var elapsedTime = new Date().getTime() - startTime;
-                output += ('CURRENT BUILD ELAPSED TIME: ' + getHumanReadableTime(elapsedTime)).bold.white.blackBG  + '\n';
+                lastRunTime = elapsedTime;
+            } else if (runTimes.length > 0) {
+                lastRunTime = runTimes[ runTimes.length - 1 ];
+            }
+
+            var topPercentOfTime = lastRunTime * 0.6;
+            var tasksThatTakeTopPercent = [];
+            var currentTimeSum = 0;
+            tasksRunTimesInCurrentBuild.sort(function(a, b) { 
+                return b.time - a.time 
+            });
+            for (i = 0; i < tasksRunTimesInCurrentBuild.length; i++ ) {
+                tasksThatTakeTopPercent.push(tasksRunTimesInCurrentBuild[i]);
+                currentTimeSum += tasksRunTimesInCurrentBuild[i].time;
+                if (currentTimeSum >= topPercentOfTime) {
+                    break;
+                }
+            }
+            var topPercentOfTimeStrings = tasksThatTakeTopPercent.map(function(taskAndTime) {
+                var percentage = ((taskAndTime.time / lastRunTime) * 100).toFixed(2);
+                var time = getHumanReadableTime(taskAndTime.time);
+                return percentage + '% ' + time + ' ' + taskAndTime.taskName;
+            });
+
+            output += 'BUILD STATUS: '.bold.white + status + 
+                ' | Run Time: ' + getHumanReadableTime(lastRunTime).bold.white + 
+                ', Top 60% = ' + topPercentOfTimeStrings.join(' | ');
+
+            if (humanReadableRunTimes.length > 0 && options.showTotalBuildRunTimes) {
+                output += ('RUN TIMES: ' + humanReadableRunTimes.join(', ')).bold.white  + '\n';
+            }
+
+            if (!newHasCompleted && options.showCurrentBuildElapsedTime) {
+                var elapsedTime = new Date().getTime() - startTime;
+                output += ('CURRENT BUILD ELAPSED TIME: ' + getHumanReadableTime(elapsedTime)).bold.white  + '\n';
             }
 
             if (output !== lastOutput) {
@@ -270,6 +302,7 @@ module.exports.initDefaultListeners = function(options) {
 
             if (weHaveJustCompletedARun) {
                 console.log("\nDone, all tasks finished running.\n".green.bold);
+                tasksRunTimesInCurrentBuild = [];
             }
 
             if (hasErrors === true && hasCompleted) {
@@ -301,7 +334,19 @@ module.exports.initDefaultListeners = function(options) {
         }
     };
 
+    var updateTaskRunTimesInCurrentBuild = function(taskName, newState) {
+        if (newState == TaskState.SUCCEEDED) {
+            var stateData = taskManager.getTaskStates();
+            var taskAndTime = {
+                taskName: taskName,
+                time: stateData[taskName].lastRunMs
+            };
+            tasksRunTimesInCurrentBuild.push(taskAndTime);
+        }
+    };
+
     this.on('taskStateChange', function (taskName, oldState, newState) {
+        updateTaskRunTimesInCurrentBuild(taskName, newState);
         renderTaskStates();
         renderTaskStateChange(taskName, oldState, newState);
     });
