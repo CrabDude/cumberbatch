@@ -1,7 +1,7 @@
 {
   "name": "gyro",
   "description": "cumberbatch-based build system",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "homepage": "https://github.com/azulus/cumberbatch",
   "authors": [
     "Jeremy Stanley <github@azulus.com> (https://github.com/azulus)"
