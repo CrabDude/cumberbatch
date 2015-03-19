@@ -66,9 +66,8 @@ module.exports.initDefaultListeners = function(options) {
     var renderTaskStates = (function() {
         var lastOutput = '';
 
-        return function() {
+        return function(stateData) {
             // retrieve the current task state
-            var stateData = taskManager.getTaskStates();
             var taskNames = Object.keys(stateData);
             var tagOutputs = {};
             var tagStates = {};
@@ -334,9 +333,8 @@ module.exports.initDefaultListeners = function(options) {
         }
     };
 
-    var updateTaskRunTimesInCurrentBuild = function(taskName, newState) {
-        if (newState == TaskState.SUCCEEDED) {
-            var stateData = taskManager.getTaskStates();
+    var updateTaskRunTimesInCurrentBuild = function(stateData, taskName, newState) {
+        if (newState == TaskState.SUCCEEDED && stateData[taskName]) {
             var taskAndTime = {
                 taskName: taskName,
                 time: stateData[taskName].lastRunMs
@@ -346,8 +344,9 @@ module.exports.initDefaultListeners = function(options) {
     };
 
     this.on('taskStateChange', function (taskName, oldState, newState) {
-        updateTaskRunTimesInCurrentBuild(taskName, newState);
-        renderTaskStates();
+        var stateData = taskManager.getTaskStates();
+        updateTaskRunTimesInCurrentBuild(stateData, taskName, newState);
+        renderTaskStates(stateData);
         renderTaskStateChange(taskName, oldState, newState);
     });
 };
