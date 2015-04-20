@@ -8,6 +8,7 @@ module.exports.initDefaultListeners = function(options) {
     var startTime = new Date().getTime();
     var hasCompleted = false;
     var tasksRunTimesInCurrentBuild = [];
+    var lastSlowestTasksOutput = '';
     var runTimes = [];
     var humanReadableRunTimes = [];
     var anchorFn;
@@ -58,6 +59,45 @@ module.exports.initDefaultListeners = function(options) {
             }
         }
     }.bind(this);
+
+    var getSlowestTasksOutput = function(tasksRunTimesInCurrentBuild) {
+        var maxPercentageOfTimeToInclude = 1;
+        var tasksThatTakeTopPercent = [];
+        var currentTimeSum = 0;
+        var maxNumberOfTasksToShowTimeFor = 6;
+
+        if (tasksRunTimesInCurrentBuild.length === 0) {
+            // No tasks currently running.
+            return lastSlowestTasksOutput;
+        }
+
+        tasksRunTimesInCurrentBuild.sort(function(a, b) { 
+            return b.time - a.time 
+        });
+
+        var totalParallelTime = 0;
+        for (var i = 0; i < tasksRunTimesInCurrentBuild.length; i++ ) {
+            totalParallelTime += tasksRunTimesInCurrentBuild[i].time;
+        }
+        var topPercentOfTime = totalParallelTime * maxPercentageOfTimeToInclude;
+
+        for (var i = 0; i < tasksRunTimesInCurrentBuild.length; i++ ) {
+            tasksThatTakeTopPercent.push(tasksRunTimesInCurrentBuild[i]);
+            currentTimeSum += tasksRunTimesInCurrentBuild[i].time;
+            if (currentTimeSum >= topPercentOfTime || 
+                tasksThatTakeTopPercent.length === maxNumberOfTasksToShowTimeFor) {
+                break;
+            }
+        }
+        var topPercentOfTimeStrings = tasksThatTakeTopPercent.map(function(taskAndTime) {
+            var percentage = ((taskAndTime.time / totalParallelTime) * 100).toFixed(2);
+            var time = getHumanReadableTime(taskAndTime.time);
+            return percentage + '% ' + time + ' ' + taskAndTime.taskName;
+        });
+        var totalPercentage = Math.floor((currentTimeSum / totalParallelTime) * 100);
+        return (' | Slowest ' + maxNumberOfTasksToShowTimeFor + ' tasks, using ' + 
+            totalPercentage + '% of parallel time = ' + topPercentOfTimeStrings.join(' | '));
+    };
 
     renderTaskErrors = _.throttle(renderTaskErrors, 5000, {
         'trailing': true
@@ -130,7 +170,10 @@ module.exports.initDefaultListeners = function(options) {
                     }
 
                     // set tags
-                    taskTags = taskData.tags;
+                    taskTags = (taskData.tags || []).filter(function(tag) {
+                        // Exclude tags begining in underscore.
+                        return tag[0] !== '_';
+                    });
 
                     if (typeof taskData.errorData !== 'undefined') {
                         hasErrors = true;
@@ -262,28 +305,10 @@ module.exports.initDefaultListeners = function(options) {
                 lastRunTime = runTimes[ runTimes.length - 1 ];
             }
 
-            var topPercentOfTime = lastRunTime * 0.6;
-            var tasksThatTakeTopPercent = [];
-            var currentTimeSum = 0;
-            tasksRunTimesInCurrentBuild.sort(function(a, b) { 
-                return b.time - a.time 
-            });
-            for (i = 0; i < tasksRunTimesInCurrentBuild.length; i++ ) {
-                tasksThatTakeTopPercent.push(tasksRunTimesInCurrentBuild[i]);
-                currentTimeSum += tasksRunTimesInCurrentBuild[i].time;
-                if (currentTimeSum >= topPercentOfTime) {
-                    break;
-                }
-            }
-            var topPercentOfTimeStrings = tasksThatTakeTopPercent.map(function(taskAndTime) {
-                var percentage = ((taskAndTime.time / lastRunTime) * 100).toFixed(2);
-                var time = getHumanReadableTime(taskAndTime.time);
-                return percentage + '% ' + time + ' ' + taskAndTime.taskName;
-            });
-
+            var slowestTasksOutput = getSlowestTasksOutput(tasksRunTimesInCurrentBuild);
             output += 'BUILD STATUS: '.bold.white + status + 
                 ' | Run Time: ' + getHumanReadableTime(lastRunTime).bold.white + 
-                ', Top 60% = ' + topPercentOfTimeStrings.join(' | ');
+                slowestTasksOutput;
 
             if (humanReadableRunTimes.length > 0 && options.showTotalBuildRunTimes) {
                 output += ('RUN TIMES: ' + humanReadableRunTimes.join(', ')).bold.white  + '\n';
@@ -301,6 +326,7 @@ module.exports.initDefaultListeners = function(options) {
 
             if (weHaveJustCompletedARun) {
                 console.log("\nDone, all tasks finished running.\n".green.bold);
+                lastSlowestTasksOutput = slowestTasksOutput;
                 tasksRunTimesInCurrentBuild = [];
             }
 
