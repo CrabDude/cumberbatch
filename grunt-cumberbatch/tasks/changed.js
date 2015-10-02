@@ -164,12 +164,19 @@ module.exports = function(grunt) {
                 }
             }
 
-            return {
+            var fileCounts = {
                 deleted: deletedFiles,
                 changed: changedFiles,
                 unchanged: unchangedFiles,
                 current: newHashes
-            }
+            };
+
+            console.warn('FILE COUNTS FOR ' + fullTaskName + ': ' +
+                Object.keys(fileCounts).map(function (key) {
+                return key + ':' + Object.keys(fileCounts[key]).length;
+            }).join(', '));
+
+            return fileCounts;
         })
         .then(function (fileStatuses) {
             // reset the task config to an empty array

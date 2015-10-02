@@ -23,7 +23,10 @@ GruntTask.prototype.run = function(callback) {
         ''
     ) + this._taskName + (this._gyroConfig.gruntOptions || '');
 
+    console.warn('About to execute: ' + taskCommand);
+
     var proc = exec(taskCommand, function(err, stdout, stderr) {
+        console.warn('Finished executing: ' + taskCommand);
         self.setProcess(undefined);
 
         if (err) {
