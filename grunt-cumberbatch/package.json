@@ -1,7 +1,7 @@
 {
   "name": "grunt-cumberbatch",
   "description": "grunt utils for cumberbatch",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "homepage": "https://github.com/azulus/grunt-cumberbatch",
   "authors": [
     "Jeremy Stanley <github@azulus.com> (https://github.com/azulus)"
