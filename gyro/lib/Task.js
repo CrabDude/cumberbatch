@@ -61,6 +61,10 @@ Task.prototype.getState = function() {
     return this._state;
 };
 
+Task.prototype.getNextRunMs = function() {
+    return this._nextRunMs;
+};
+
 Task.prototype.setNextRunMs = function(ms) {
     this._nextRunMs = ms;
 };
@@ -94,10 +98,6 @@ Task.prototype.setLastDuration = function(duration) {
 
 Task.prototype.getLastDuration = function() {
     return this._duration;
-};
-
-Task.prototype.getAggregatedDuration = function() {
-
 };
 
 Task.prototype.getTags = function() {
