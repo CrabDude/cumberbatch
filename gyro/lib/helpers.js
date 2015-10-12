@@ -71,32 +71,87 @@ module.exports.initDefaultListeners = function(options) {
             return lastSlowestTasksOutput;
         }
 
-        tasksRunTimesInCurrentBuild.sort(function(a, b) { 
-            return b.time - a.time 
+        tasksRunTimesInCurrentBuild.sort(function(a, b) {
+            return b.time - a.time
         });
 
         var totalParallelTime = 0;
         for (var i = 0; i < tasksRunTimesInCurrentBuild.length; i++ ) {
+            // track total parallel execution seconds
             totalParallelTime += tasksRunTimesInCurrentBuild[i].time;
         }
         var topPercentOfTime = totalParallelTime * maxPercentageOfTimeToInclude;
 
         for (var i = 0; i < tasksRunTimesInCurrentBuild.length; i++ ) {
+            // track the tasks that take the largerst percentage of execution seconds
             tasksThatTakeTopPercent.push(tasksRunTimesInCurrentBuild[i]);
             currentTimeSum += tasksRunTimesInCurrentBuild[i].time;
-            if (currentTimeSum >= topPercentOfTime || 
+            if (currentTimeSum >= topPercentOfTime ||
                 tasksThatTakeTopPercent.length === maxNumberOfTasksToShowTimeFor) {
                 break;
             }
         }
         var topPercentOfTimeStrings = tasksThatTakeTopPercent.map(function(taskAndTime) {
+            // stringify the tasks that take the most time
             var percentage = ((taskAndTime.time / totalParallelTime) * 100).toFixed(2);
             var time = getHumanReadableTime(taskAndTime.time);
             return percentage + '% ' + time + ' ' + taskAndTime.taskName;
         });
+
         var totalPercentage = Math.floor((currentTimeSum / totalParallelTime) * 100);
-        return (' | Slowest ' + maxNumberOfTasksToShowTimeFor + ' tasks, using ' + 
+        return (' | Slowest ' + maxNumberOfTasksToShowTimeFor + ' tasks, using ' +
             totalPercentage + '% of parallel time = ' + topPercentOfTimeStrings.join(' | '));
+    };
+
+    var getSlowestTasksChain = function (tasksRunTimesInCurrentBuild, stateData) {
+        var taskNames = Object.keys(stateData);
+        var aggregatedTimes = {};
+
+        var generateAggregatedTimeForTask = function (taskName) {
+            if (aggregatedTimes[taskName]) {
+                return aggregatedTimes[taskName];
+            }
+
+            var taskData = stateData[taskName];
+            if (!taskData || taskData.lastRunMs === undefined) {
+                return;
+            }
+
+            // find the run time of the longest dependency
+            var longestDependency = (taskData.dependencies || []).map(function (subTaskName) {
+                return generateAggregatedTimeForTask(subTaskName);
+            }).reduce(function(prev, curr) {
+                if (!prev) return curr;
+                if (!curr) return prev;
+                return curr.aggregatedTime > prev.aggregatedTime ? curr : prev;
+            }, null);
+
+            aggregatedTimes[taskName] = {
+                name: taskName,
+                selfTime: taskData.lastRunMs,
+                aggregatedTime: taskData.lastRunMs + (longestDependency ? longestDependency.aggregatedTime : 0),
+                aggregatedTasks: [].concat(longestDependency ? longestDependency.aggregatedTasks : [], taskName),
+                longestDependency: longestDependency
+            };
+            return aggregatedTimes[taskName];
+        };
+
+        var longestTask = taskNames.map(generateAggregatedTimeForTask)
+        .reduce(function (prev, curr) {
+            if (!prev) return curr;
+            if (!curr) return prev;
+            return curr.aggregatedTime > prev.aggregatedTime ? curr : prev;
+        }, null);
+        if (longestTask) {
+            var longestTaskPath = longestTask.aggregatedTasks.map(function (taskName) {
+                return taskName + '(' + stateData[taskName].lastRunMs + 'ms)';
+            }).join('->');
+
+            return  ' |  Slowest path: ' + longestTaskPath;
+        } else {
+            return '';
+        }
+
     };
 
     renderTaskErrors = _.throttle(renderTaskErrors, 5000, {
@@ -306,9 +361,10 @@ module.exports.initDefaultListeners = function(options) {
             }
 
             var slowestTasksOutput = getSlowestTasksOutput(tasksRunTimesInCurrentBuild);
-            output += 'BUILD STATUS: '.bold.white + status + 
-                ' | Run Time: ' + getHumanReadableTime(lastRunTime).bold.white + 
-                slowestTasksOutput;
+            var slowestTasksChain = getSlowestTasksChain(tasksRunTimesInCurrentBuild, stateData);
+            output += 'BUILD STATUS: '.bold.white + status +
+                ' | Run Time: ' + getHumanReadableTime(lastRunTime).bold.white +
+                slowestTasksOutput + slowestTasksChain;
 
             if (humanReadableRunTimes.length > 0 && options.showTotalBuildRunTimes) {
                 output += ('RUN TIMES: ' + humanReadableRunTimes.join(', ')).bold.white  + '\n';
@@ -342,7 +398,7 @@ module.exports.initDefaultListeners = function(options) {
 
     var renderTaskStateChange = function(taskName, oldState, newState) {
         // TODO: Maybe move this out?
-        var taskStateDescriptions = ['NONE', 'INITIALIZING', 'PENDING', 'IN_PROGRESS', 
+        var taskStateDescriptions = ['NONE', 'INITIALIZING', 'PENDING', 'IN_PROGRESS',
             'IN_PROGRESS_MUST_RERUN', 'FAILED', 'SUCCEEDED'];
 
         if (oldState < taskStateDescriptions.length && newState < taskStateDescriptions.length) {

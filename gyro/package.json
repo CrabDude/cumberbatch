@@ -1,7 +1,7 @@
 {
   "name": "gyro",
   "description": "cumberbatch-based build system",
-  "version": "0.0.20",
+  "version": "0.0.21",
   "homepage": "https://github.com/azulus/cumberbatch",
   "authors": [
     "Jeremy Stanley <github@azulus.com> (https://github.com/azulus)"
@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "colors": "0.6",
-    "cumberbatch": "0.2.0",
+    "cumberbatch": "0.3.2",
     "grunt": "0.4.5",
     "lodash": "2.4.1"
   },

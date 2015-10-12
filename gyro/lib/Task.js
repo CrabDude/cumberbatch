@@ -65,10 +65,6 @@ Task.prototype.setNextRunMs = function(ms) {
     this._nextRunMs = ms;
 };
 
-Task.prototype.getNextRunMs = function() {
-    return this._nextRunMs;
-};
-
 Task.prototype.setError = function(stderr, stdout) {
     if (typeof stderr === 'undefined') {
         delete this._error;
@@ -98,6 +94,10 @@ Task.prototype.setLastDuration = function(duration) {
 
 Task.prototype.getLastDuration = function() {
     return this._duration;
+};
+
+Task.prototype.getAggregatedDuration = function() {
+
 };
 
 Task.prototype.getTags = function() {

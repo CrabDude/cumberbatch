@@ -56,7 +56,7 @@ var Hasher = function (watcher, options) {
       for (var i = 0; i < this._options.clusterProcesses; i++) {
         cluster.fork();
       }
-      console.log('SPAWNED', this._options.clusterProcesses, 'WORKERS');
+      console.log('SPAWNED', this._options.clusterProcesses, 'HASHER WORKERS');
 
       cluster.on('online', function(worker) {
         var workerIdx = self._hasherProcesses.length;
