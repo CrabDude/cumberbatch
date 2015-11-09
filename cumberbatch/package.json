@@ -1,7 +1,7 @@
 {
   "name": "cumberbatch",
   "description": "crazy watcher stuff",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "homepage": "https://github.com/azulus/cumberbatch",
   "authors": [
     "Jeremy Stanley <github@azulus.com> (https://github.com/azulus)"
@@ -17,8 +17,8 @@
     "chokidar": "1.0.0-rc4",
     "kew": "0.3",
     "lru-cache": "2.5",
-    "oid": "0.5",
-    "minimagic": "0.03",
+    "oid": "1.2.0",
+    "minimagic": "0.3.1",
     "minimatch": "0.2.14",
     "xxhash": "0.2"
   },
