@@ -1,7 +1,7 @@
 {
   "name": "grunt-cumberbatch",
   "description": "grunt utils for cumberbatch",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "homepage": "https://github.com/azulus/grunt-cumberbatch",
   "authors": [
     "Jeremy Stanley <github@azulus.com> (https://github.com/azulus)"
@@ -17,7 +17,7 @@
     "url": "https://github.com/azulus/cumberbatch.git"
   },
   "dependencies": {
-    "cumberbatch": "0.3.3",
+    "cumberbatch": "0.3.4",
     "grunt": "0.4.5",
     "kew": "0.4.0",
     "mkdirp": "0.5.0"
