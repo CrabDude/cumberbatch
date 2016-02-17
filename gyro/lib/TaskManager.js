@@ -438,14 +438,22 @@ TaskManager.prototype._runNext = function() {
 TaskManager.prototype._runTask = function(taskName) {
     var task = this._tasks[taskName];
 
+
+    /* Some tasks spawn their own processes or heavily use
+        system resources other than CPU. Use config.parallelWeight to offset this */
+    var taskConfig = task.getConfig() || {};
+    var parallelWeight = parseInt(taskConfig['parallelWeight'] || 1);
+    if (this._runningProcesses >= 1 && (this._runningProcesses + parallelWeight) > this._maxProcesses)
+    {
+        return; //_runTask() will retry later
+    }
+
     task.setNextRunMs(undefined);
 
     // mark the task as in progress
     this._trigger(taskName, TaskAction.RUNNING);
 
     // build the command to run and fold in the decorator as needed
-    var taskConfig = task.getConfig();
-
     // if the task is a pass through, immediately trigger success
     if (task.isEmpty()) {
         this._trigger(taskName, TaskAction.SUCCEEDED);
@@ -456,19 +464,14 @@ TaskManager.prototype._runTask = function(taskName) {
     var startTime = Date.now();
     var self = this;
 
-    /* Some tasks spawn their own processes. Use config.processesUsed
-        to represent the number of processes a task might spawn. */
-    var taskConfig = task.getConfig() || {};
-    var processesUsed = parseInt(taskConfig['processesUsed'] || 1);
-
-    /* This may exceed maxProcesses temporarily.
+    /* This may exceed maxProcesses temporarily so that at least one task can run.
        Allow this to avoid deadlock
        (where processesUsed > maxProcesses) */
-    this._runningProcesses += processesUsed;
+    this._runningProcesses += parallelWeight;
 
     task.run(function (err) {
         task.setLastDuration(Date.now() - startTime);
-        self._runningProcesses -= processesUsed;
+        self._runningProcesses -= parallelWeight;
         self._trigger(taskName, !!err ? TaskAction.FAILED : TaskAction.SUCCEEDED);
     });
 };
