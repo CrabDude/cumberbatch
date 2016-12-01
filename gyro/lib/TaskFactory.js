@@ -1,9 +1,14 @@
 var GruntPoolTask = require('./tasks/GruntPoolTask.js');
 var GruntTask = require('./tasks/GruntTask.js');
 var NodeTask = require('./tasks/NodeTask.js');
+var ExecTask = require('./tasks/ExecTask.js');
 var Task = require('./Task.js');
 
 var TaskFactory = function() {};
+
+TaskFactory.prototype.getExecTask = function(taskName, taskConfig, gyroConfig) {
+    return new ExecTask(taskName, taskConfig, gyroConfig);
+};
 
 TaskFactory.prototype.getGruntTask = function(taskName, taskConfig, gyroConfig) {
     return new GruntTask(taskName, taskConfig, gyroConfig);
@@ -23,6 +28,8 @@ TaskFactory.prototype.getGenericTask = function(taskName, taskConfig, gyroConfig
 
 TaskFactory.prototype.getTask = function (taskName, taskConfig, gyroConfig) {
     switch (taskConfig.taskType) {
+        case "exec":
+            return this.getExecTask(taskName, taskConfig, gyroConfig);
         case "grunt":
             return this.getGruntTask(taskName, taskConfig, gyroConfig);
         case "gruntPool":
