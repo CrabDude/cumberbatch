@@ -14,12 +14,12 @@
     "url": "https://github.com/azulus/cumberbatch.git"
   },
   "dependencies": {
-    "chokidar": "1.0.0-rc4",
+    "chokidar": "^1.6.1",
     "kew": "0.3",
     "lru-cache": "2.5",
-    "oid": "1.2.0",
     "minimagic": "0.3.2",
     "minimatch": "0.2.14",
+    "oid": "1.2.0",
     "xxhash": "0.2"
   },
   "devDependencies": {
