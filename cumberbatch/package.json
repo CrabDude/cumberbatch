@@ -1,7 +1,7 @@
 {
   "name": "cumberbatch",
   "description": "crazy watcher stuff",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "homepage": "https://github.com/azulus/cumberbatch",
   "authors": [
     "Jeremy Stanley <github@azulus.com> (https://github.com/azulus)"
@@ -30,12 +30,5 @@
   "bugs": {
     "url": "https://github.com/azulus/cumberbatch/issues"
   },
-  "readme": "ERROR: No README data found!",
-  "_id": "cumberbatch@0.1.26",
-  "dist": {
-    "shasum": "7094c84eefcfc4dacd85f88897cb83b90b328c27"
-  },
-  "_from": "cumberbatch@",
-  "_resolved": "https://registry.npmjs.org/cumberbatch/-/cumberbatch-0.1.22.tgz",
-  "_shasum": "01b45dce1e0d7a706e8ce36f1fe72f40e92b4de9"
+  "readme": "ERROR: No README data found!"
 }
