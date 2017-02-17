@@ -6,6 +6,7 @@
   "authors": [
     "Jeremy Stanley <github@azulus.com> (https://github.com/azulus)"
   ],
+  "license": "MIT",
   "contributors": [],
   "keywords": [],
   "main": "./main.js",

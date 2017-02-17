@@ -8,6 +8,7 @@
   ],
   "contributors": [],
   "keywords": [],
+  "license": "MIT",
   "main": "./gyro.js",
   "repository": {
     "type": "git",

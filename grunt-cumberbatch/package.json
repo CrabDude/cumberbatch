@@ -8,6 +8,7 @@
   ],
   "contributors": [],
   "keywords": [],
+  "license": "MIT",
   "main": "./main.js",
   "bin": {
     "grunt-cumberbatch": "bin/grunt-cumberbatch"

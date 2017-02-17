@@ -9,6 +9,7 @@
   "contributors": [],
   "keywords": [],
   "main": "./MinimatchTree.js",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/azulus/minimagic.git"
