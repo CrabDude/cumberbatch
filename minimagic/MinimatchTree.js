@@ -1,5 +1,4 @@
 var minimatch = require('minimatch');
-var oid = require('oid');
 
 var MinimatchTree = function() {
   this._roots = [];
@@ -7,9 +6,20 @@ var MinimatchTree = function() {
   this._exactMatches = {};
 };
 
+var getHash = function (data) {
+  var symbols = Object.getOwnPropertySymbols(data);
+  if (symbols.length === 0) {
+    var symbol = Symbol();
+    data[symbol] = '__minimagicSymbol';
+    return symbol;
+  } else {
+    return symbols[0];
+  }
+}
+
 MinimatchTree.prototype.add = function (glob, data) {
   var globRoot = this._getGlobRoot(glob);
-  var hash = oid.hash(data);
+  var hash = getHash(data);
   var isNegation = this._isNegation(glob);
   if (isNegation) {
       glob = glob.substr(1);
@@ -65,7 +75,7 @@ MinimatchTree.prototype.add = function (glob, data) {
 
 MinimatchTree.prototype.remove = function (glob, data) {
   var globRoot = this._getGlobRoot(glob);
-  var hash = oid.hash(data);
+  var hash = getHash(data);
 
   var matches = globRoot === glob ? this._exactMatches[glob] : this._rootData[globRoot];
   if (typeof matches !== 'undefined') {
@@ -85,7 +95,7 @@ MinimatchTree.prototype.find = function (filenames) {
   // keep the files sorted for ease of walking the patterns
   filenames.sort();
 
-  var callbacks = {}, negatedMap = {}, foundMap = {};
+  var callbacks = new Map(), negatedMap = new Map(), foundMap = new Map();
   var globIdx, stemIdx, fileIdx = 0;
 
   // binary search to find the starting point for the glob / file traversal
@@ -118,25 +128,25 @@ MinimatchTree.prototype.find = function (filenames) {
 
         if (!pattern.isNegation) {
           // make sure the file isn't in the negation map and queue the callback
-          if (typeof negatedMap[pattern.hash] !== 'undefined'
-              && negatedMap[pattern.hash][filename] === true) {
+          if (typeof negatedMap.get(pattern.hash) !== 'undefined'
+              && negatedMap.get(pattern.hash)[filename] === true) {
             continue;
           }
 
-          if (typeof foundMap[pattern.hash] === 'undefined') {
-            foundMap[pattern.hash] = {};
+          if (typeof foundMap.get(pattern.hash) === 'undefined') {
+            foundMap.set(pattern.hash, {});
           }
 
-          foundMap[pattern.hash][filename] = true;
-          callbacks[pattern.hash] = pattern.data;
+          foundMap.get(pattern.hash)[filename] = true;
+          callbacks.set(pattern.hash, pattern.data);
         } else {
           // mark the hash as negated for this file
-          if (typeof negatedMap[pattern.hash] === 'undefined') {
-            negatedMap[pattern.hash] = {};
+          if (typeof negatedMap.get(pattern.hash) === 'undefined') {
+            negatedMap.set(pattern.hash, {});
           }
-          negatedMap[pattern.hash][filename] = true;
-          if (typeof foundMap[pattern.hash] !== 'undefined') {
-            delete foundMap[pattern.hash][filename];
+          negatedMap.get(pattern.hash)[filename] = true;
+          if (typeof foundMap.get(pattern.hash) !== 'undefined') {
+            delete foundMap.get(pattern.hash)[filename];
           }
         }
       }
@@ -193,25 +203,25 @@ MinimatchTree.prototype.find = function (filenames) {
           if (minimatch(filename, pattern.glob)) {
             if (!pattern.isNegation) {
               // make sure the file isn't in the negation map and queue the callback
-              if (typeof negatedMap[pattern.hash] !== 'undefined'
-                  && negatedMap[pattern.hash][filename] === true) {
+              if (typeof negatedMap.get(pattern.hash) !== 'undefined'
+                  && negatedMap.get(pattern.hash)[filename] === true) {
                 continue;
               }
 
-              if (typeof foundMap[pattern.hash] === 'undefined') {
-                foundMap[pattern.hash] = {};
+              if (typeof foundMap.get(pattern.hash) === 'undefined') {
+                foundMap.set(pattern.hash, {});
               }
 
-              foundMap[pattern.hash][filename] = true;
-              callbacks[pattern.hash] = pattern.data;
+              foundMap.get(pattern.hash)[filename] = true;
+              callbacks.set(pattern.hash, pattern.data);
             } else {
               // mark the hash as negated for this file
-              if (typeof negatedMap[pattern.hash] === 'undefined') {
-                negatedMap[pattern.hash] = {};
+              if (typeof negatedMap.get(pattern.hash) === 'undefined') {
+                negatedMap.set(pattern.hash, {});
               }
-              negatedMap[pattern.hash][filename] = true;
-              if (typeof foundMap[pattern.hash] !== 'undefined') {
-                delete foundMap[pattern.hash][filename];
+              negatedMap.get(pattern.hash)[filename] = true;
+              if (typeof foundMap.get(pattern.hash) !== 'undefined') {
+                delete foundMap.get(pattern.hash)[filename];
               }
             }
           }
@@ -222,12 +232,12 @@ MinimatchTree.prototype.find = function (filenames) {
   }
 
   var response = [];
-  for (var key in foundMap) {
-    var files = Object.keys(foundMap[key]);
+  foundMap.forEach(function (val, key) {
+    var files = Object.keys(val);
     if (files.length !== 0) {
-      response.push({data: callbacks[key], files: files});
+      response.push({data: callbacks.get(key), files: files});
     }
-  }
+  });
   return response;
 };
 

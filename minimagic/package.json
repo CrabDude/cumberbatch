@@ -1,7 +1,7 @@
 {
   "name": "minimagic",
   "description": "fast minimatching",
-  "version": "0.3.2",
+  "version": "0.3.6",
   "homepage": "https://github.com/azulus/minimagic",
   "authors": [
     "Jeremy Stanley <github@azulus.com> (https://github.com/azulus)"
@@ -15,7 +15,6 @@
     "url": "https://github.com/azulus/minimagic.git"
   },
   "dependencies": {
-    "oid": "1.2.0",
     "minimatch": "0.2"
   },
   "devDependencies": {

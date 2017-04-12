@@ -1,14 +1,14 @@
 var PairingHeap = (function(){
-  function mergeSubheaps(subheaps) {
-    if (typeof subheaps === 'undefined' || !subheaps.length) return new PairingHeap()
-    else if (subheaps.length === 1) return subheaps[0]
-    else {
-      var first = merge(subheaps[0], subheaps[1])
-      if (subheaps.length === 2) {
-        return first;
-      } else {
-        return merge(first, mergeSubheaps(subheaps.slice(2)))
-      }
+  function mergeSubheaps(heaps) {
+    if (typeof heaps === 'undefined' || heaps.length === 0) {
+      return new PairingHeap();
+    } else if (heaps.length === 1) {
+      return heaps[0];
+    } else if (heaps.length === 2) {
+      return merge(heaps[0], heaps[1]);
+    } else {
+      var midPoint = Math.floor(heaps.length / 2);
+      return merge(mergeSubheaps(heaps.slice(0, midPoint)), mergeSubheaps(heaps.slice(midPoint)));
     }
   }
 

@@ -1,5 +1,3 @@
-var oid = require('oid');
-
 var MinimatchTree = require('minimagic').MinimatchTree;
 
 var GlobEmitter = function(options) {
@@ -40,7 +38,7 @@ GlobEmitter.prototype.on = function(globs, callback) {
   var listener = {
     fn: callback
   };
-  listener.hash = oid.hash(listener);
+  listener.hash = Symbol();
 
   for (var i = 0; i < globs.length; i++) {
     var glob = globs[i];
